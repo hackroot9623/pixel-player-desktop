@@ -24,6 +24,8 @@ import 'package:pixelplay_desktop/ui/components/song_info_sheet.dart';
 import 'package:pixelplay_desktop/ui/components/wavy_slider.dart';
 import 'package:pixelplay_desktop/ui/screens/full_player_screen.dart';
 import 'package:pixelplay_desktop/ui/screens/settings_screens.dart';
+import 'package:pixelplay_desktop/ui/shell/app_shell.dart';
+import 'package:pixelplay_desktop/ui/shell/compact_player.dart';
 import 'package:pixelplay_desktop/ui/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -656,6 +658,65 @@ void main() {
       await _settle(tester, frames: 8);
       expect(tester.takeException(), isNull);
       expect(widestCoverPath(tester), songs.first.albumArtPath);
+    });
+  });
+
+  group('compact mode', () {
+    test('the breakpoint trips on either axis', () {
+      expect(isCompactSize(const Size(1360, 860)), isFalse);
+      expect(isCompactSize(const Size(900, 620)), isFalse);
+      // Just inside and just outside, on each axis independently.
+      expect(isCompactSize(const Size(621, 441)), isFalse);
+      expect(isCompactSize(const Size(619, 441)), isTrue);
+      expect(isCompactSize(const Size(621, 439)), isTrue);
+      // A tall narrow window is compact too — the rail plus content needs
+      // width, not just area.
+      expect(isCompactSize(const Size(400, 1200)), isTrue);
+      expect(isCompactSize(const Size(1200, 300)), isTrue);
+    });
+
+    testWidgets('the shell swaps to the player and back on resize', (
+      tester,
+    ) async {
+      // Big: the full shell, with the rail and the library.
+      resize(tester, const Size(1200, 800));
+      await tester.pumpWidget(host(const AppShell()));
+      await _settle(tester, frames: 4);
+      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(CompactPlayer), findsNothing);
+
+      // Small: the player only.
+      resize(tester, const Size(480, 260));
+      await _settle(tester, frames: 4);
+      expect(find.byType(CompactPlayer), findsOneWidget);
+      expect(
+        find.byType(NavigationRail),
+        findsNothing,
+        reason: 'no room to browse at this size',
+      );
+      // Nothing is playing in this fixture, so the compact view is in its idle
+      // state; the transport only exists once there is a track. Seeding one
+      // needs mpv, which never completes under the widget-test harness.
+      expect(find.text('Nothing playing'), findsOneWidget);
+
+      // And back again — the switch has to be reversible, not a one-way trip.
+      resize(tester, const Size(1200, 800));
+      await _settle(tester, frames: 4);
+      expect(find.byType(NavigationRail), findsOneWidget);
+      expect(find.byType(CompactPlayer), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('with nothing playing it explains itself', (tester) async {
+      resize(tester, const Size(480, 260));
+      await tester.pumpWidget(host(const CompactPlayer()));
+      await _settle(tester, frames: 3);
+      expect(find.text('Nothing playing'), findsOneWidget);
+      expect(
+        find.textContaining('bigger to browse'),
+        findsOneWidget,
+        reason: 'the way out of compact mode has to be discoverable',
+      );
     });
   });
 

@@ -82,6 +82,11 @@ Jellyfin, Navidrome, Google Drive, Telegram, NetEase, QQMusic — dashboards + s
 (`data/stream`, `data/{jellyfin,navidrome,gdrive,telegram,netease,qqmusic}`), Accounts screen.
 
 ### Desktop-only surface (no Android counterpart)
+Compact mode: below 620x440 the shell drops the navigation rail and the library
+and becomes a player — artwork, track, seek bar and transport — reverting when
+the window grows. The window minimum is 320x180 so it can be shrunk to a
+desk-corner player.
+
 Client-side window decorations: a setting to hide the system title bar and draw
 our own close / minimise / maximise controls, with the button cluster on either
 side and in either convention (glyphs or traffic lights). Includes the drag

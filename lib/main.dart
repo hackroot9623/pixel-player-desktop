@@ -20,7 +20,9 @@ Future<void> main() async {
   await windowManager.waitUntilReadyToShow(
     const WindowOptions(
       size: Size(1360, 860),
-      minimumSize: Size(900, 620),
+      // Small enough to be a desk-corner player. Below the compact breakpoint
+      // the shell drops the library and becomes just the player.
+      minimumSize: Size(320, 180),
       title: 'PixelPlayer',
     ),
     () async {

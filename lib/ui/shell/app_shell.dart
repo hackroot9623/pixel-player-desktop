@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/providers.dart';
 import '../components/mini_player.dart';
 import '../components/window_controls.dart';
+import 'compact_player.dart';
 import '../navigation.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
@@ -96,12 +97,18 @@ class _AppShellState extends ConsumerState<AppShell> {
       // Hiding the system decorations also removes the compositor's resize
       // borders, so the app has to provide its own.
       body: WindowResizeArea(
-        child: Column(
-          children: [
-            // Nothing when the system title bar is in use.
-            const WindowTitleBar(),
-            Expanded(child: _content(radius)),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Too small to browse in: become a player.
+            if (isCompactSize(constraints.biggest)) return const CompactShell();
+            return Column(
+              children: [
+                // Nothing when the system title bar is in use.
+                const WindowTitleBar(),
+                Expanded(child: _content(radius)),
+              ],
+            );
+          },
         ),
       ),
     );
