@@ -14,25 +14,23 @@ import '../components/wavy_slider.dart';
 import '../navigation.dart';
 import '../theme/shapes.dart';
 
-void openFullPlayer(BuildContext context) =>
-    Navigator.of(context, rootNavigator: true).push(
-      PageRouteBuilder<void>(
-        transitionDuration: const Duration(milliseconds: 320),
-        reverseTransitionDuration: const Duration(milliseconds: 240),
-        pageBuilder: (context, animation, _) => FadeTransition(
-          opacity: animation,
-          child: SlideTransition(
-            position: Tween(
-              begin: const Offset(0, 0.06),
-              end: Offset.zero,
-            ).animate(
-              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
-            ),
-            child: const FullPlayerScreen(),
-          ),
+void openFullPlayer(
+  BuildContext context,
+) => Navigator.of(context, rootNavigator: true).push(
+  PageRouteBuilder<void>(
+    transitionDuration: const Duration(milliseconds: 320),
+    reverseTransitionDuration: const Duration(milliseconds: 240),
+    pageBuilder: (context, animation, _) => FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween(begin: const Offset(0, 0.06), end: Offset.zero).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
         ),
+        child: const FullPlayerScreen(),
       ),
-    );
+    ),
+  ),
+);
 
 /// Port of `presentation/components/player/FullPlayerContent`, laid out for a
 /// wide window: artwork carousel and transport on the left, queue docked right.
@@ -122,42 +120,45 @@ class _TopBar extends ConsumerWidget {
     final player = ref.watch(playerProvider);
     final timerActive = player.sleepTimerActive;
     final remaining = player.sleepTimerRemaining;
-    return Row(
-      children: [
-        IconButton(
-          tooltip: 'Close',
-          icon: const Icon(Icons.keyboard_arrow_down_rounded),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        Expanded(
-          child: Center(
-            child: Text(
-              'Now playing',
-              style: theme.textTheme.titleSmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+    // Inset: the window edge (or the client-side title bar) is right above
+    // this, and the close button was sitting in the corner.
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+      child: Row(
+        children: [
+          IconButton(
+            tooltip: 'Close',
+            icon: const Icon(Icons.keyboard_arrow_down_rounded),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                'Now playing',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
           ),
-        ),
-        IconButton(
-          tooltip: !timerActive
-              ? 'Sleep timer'
-              : 'Sleep timer: ${remaining == null ? 'on' : formatDuration(remaining)}',
-          isSelected: timerActive,
-          icon: Icon(
-            timerActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
-            color: timerActive ? theme.colorScheme.primary : null,
+          IconButton(
+            tooltip: !timerActive
+                ? 'Sleep timer'
+                : 'Sleep timer: ${remaining == null ? 'on' : formatDuration(remaining)}',
+            isSelected: timerActive,
+            icon: Icon(
+              timerActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+              color: timerActive ? theme.colorScheme.primary : null,
+            ),
+            onPressed: () => showSleepTimerSheet(context),
           ),
-          onPressed: () => showSleepTimerSheet(context),
-        ),
-        _LyricsToggle(song: song),
-        IconButton(
-          tooltip: 'Song info',
-          icon: const Icon(Icons.info_outline_rounded),
-          onPressed: () => showSongInfoSheet(context, song),
-        ),
-        const SizedBox(width: 8),
-      ],
+          IconButton(
+            tooltip: 'Song info',
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: () => showSongInfoSheet(context, song),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -283,7 +284,10 @@ class _NowPlayingPane extends ConsumerWidget {
                 },
               ),
               const SizedBox(height: 20),
-              const TransportBar(),
+              TransportBar(
+                // Far left, before shuffle.
+                leadingBuilder: (size) => LyricsToggle(song: song, size: size),
+              ),
               const SizedBox(height: 12),
               if (compact)
                 TextButton.icon(
@@ -314,27 +318,31 @@ String? _audioMetaLabel(Song song) {
 
 /// Toggles the side lyrics pane on a wide window, or opens the lyrics sheet on
 /// a narrow one.
-class _LyricsToggle extends ConsumerWidget {
-  const _LyricsToggle({required this.song});
+class LyricsToggle extends ConsumerWidget {
+  const LyricsToggle({super.key, required this.song, this.size = 36});
 
   final Song song;
+  final double size;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final scheme = Theme.of(context).colorScheme;
     final settings = ref.watch(settingsProvider);
     final hasLyrics =
         ref.watch(currentLyricsProvider).valueOrNull?.isEmpty == false;
     final wide = MediaQuery.sizeOf(context).width > 1000;
-    return IconButton(
+    final showingPane = wide && settings.showLyricsPane;
+
+    // Wears the same active fill as shuffle/repeat/like, since it now sits in
+    // that row rather than the top bar.
+    return TransportIconToggle(
+      size: size,
+      active: showingPane,
+      icon: hasLyrics ? Icons.lyrics_rounded : Icons.lyrics_outlined,
       tooltip: hasLyrics ? 'Lyrics' : 'Lyrics (none found yet)',
-      isSelected: wide && settings.showLyricsPane,
-      icon: Icon(
-        hasLyrics ? Icons.lyrics_rounded : Icons.lyrics_outlined,
-        color: wide && settings.showLyricsPane
-            ? Theme.of(context).colorScheme.primary
-            : null,
-      ),
-      onPressed: () {
+      activeColor: scheme.tertiaryFixed,
+      activeContentColor: scheme.onTertiaryFixed,
+      onTap: () {
         if (wide) {
           settings.showLyricsPane = !settings.showLyricsPane;
         } else {

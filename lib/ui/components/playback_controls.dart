@@ -22,7 +22,12 @@ import '../theme/shapes.dart';
 /// while playing, the morphing play/pause glyph, and the "fixed" colour roles
 /// on the three toggles.
 class TransportBar extends ConsumerStatefulWidget {
-  const TransportBar({super.key, this.compact = false, this.showToggles = true});
+  const TransportBar({
+    super.key,
+    this.compact = false,
+    this.showToggles = true,
+    this.leadingBuilder,
+  });
 
   /// Slightly tighter still, for the mini player.
   final bool compact;
@@ -30,6 +35,11 @@ class TransportBar extends ConsumerStatefulWidget {
   /// Drops shuffle, repeat and like, leaving only previous/play/next.
   /// The full bar needs ~235px; without the toggles it needs ~135.
   final bool showToggles;
+
+  /// An extra control at the far left, before shuffle. Takes the toggle size so
+  /// a caller's button matches the rest of the row; the full player puts the
+  /// lyrics toggle here.
+  final Widget Function(double size)? leadingBuilder;
 
   @override
   ConsumerState<TransportBar> createState() => _TransportBarState();
@@ -58,17 +68,15 @@ class _TransportBarState extends ConsumerState<TransportBar> {
   /// Scale factor standing in for the Compose weight animation: pressed grows,
   /// the others shrink. Subtler than the phone version (1.1 / 0.65) because at
   /// desktop sizes that much movement reads as a glitch.
-  double _scaleFor(_PressTarget target) => _pressed == null
-      ? 1
-      : (_pressed == target ? 1.06 : 0.94);
+  double _scaleFor(_PressTarget target) =>
+      _pressed == null ? 1 : (_pressed == target ? 1.06 : 0.94);
 
   @override
   Widget build(BuildContext context) {
     final player = ref.watch(playerProvider);
     final scheme = Theme.of(context).colorScheme;
     final song = player.current;
-    final favorite =
-        song != null && ref.watch(isFavoriteProvider(song.id));
+    final favorite = song != null && ref.watch(isFavoriteProvider(song.id));
 
     final skipSize = widget.compact ? 34.0 : 40.0;
     final playSize = widget.compact ? 42.0 : 52.0;
@@ -78,8 +86,9 @@ class _TransportBarState extends ConsumerState<TransportBar> {
       mainAxisAlignment: MainAxisAlignment.center,
       spacing: widget.compact ? 4 : 8,
       children: [
+        if (widget.leadingBuilder != null) widget.leadingBuilder!(toggleSize),
         if (widget.showToggles)
-          _IconToggle(
+          TransportIconToggle(
             size: toggleSize,
             active: player.shuffle,
             icon: Icons.shuffle_rounded,
@@ -157,7 +166,7 @@ class _TransportBarState extends ConsumerState<TransportBar> {
           ),
         ),
         if (widget.showToggles) ...[
-          _IconToggle(
+          TransportIconToggle(
             size: toggleSize,
             active: player.repeatMode != RepeatMode.off,
             icon: player.repeatMode == RepeatMode.one
@@ -172,7 +181,7 @@ class _TransportBarState extends ConsumerState<TransportBar> {
             activeContentColor: scheme.onSecondaryFixed,
             onTap: player.cycleRepeatMode,
           ),
-          _IconToggle(
+          TransportIconToggle(
             size: toggleSize,
             active: favorite,
             icon: favorite
@@ -257,8 +266,11 @@ class _RoundButton extends StatelessWidget {
 
 /// A flat icon that fills in with its "fixed" colour role when active — the
 /// desktop-weight version of `ToggleSegmentButton`.
-class _IconToggle extends StatelessWidget {
-  const _IconToggle({
+///
+/// Public so callers passing [TransportBar.leadingBuilder] can match the row.
+class TransportIconToggle extends StatelessWidget {
+  const TransportIconToggle({
+    super.key,
     required this.size,
     required this.active,
     required this.icon,

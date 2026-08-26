@@ -901,6 +901,43 @@ void main() {
     expect(find.byType(WindowResizeArea), findsOneWidget);
   });
 
+  testWidgets('the transport row can carry a leading control', (tester) async {
+    // The lyrics toggle lives here now, at the far left before shuffle, rather
+    // than in the top bar.
+    await tester.pumpWidget(
+      host(
+        Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 560,
+              child: TransportBar(
+                leadingBuilder: (size) => TransportIconToggle(
+                  size: size,
+                  active: false,
+                  icon: Icons.lyrics_outlined,
+                  tooltip: 'Lyrics',
+                  activeColor: Colors.pink,
+                  activeContentColor: Colors.white,
+                  onTap: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await _settle(tester, frames: 3);
+
+    final lyrics = find.byIcon(Icons.lyrics_outlined);
+    expect(lyrics, findsOneWidget);
+    expect(
+      tester.getCenter(lyrics).dx,
+      lessThan(tester.getCenter(find.byIcon(Icons.shuffle_rounded)).dx),
+      reason: 'it must sit before shuffle',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   test('carousel weights are identity-stable', () {
     // CarouselView compares flexWeights with `!=` in didUpdateWidget, so a
     // freshly allocated list each frame made it reach into the scroll position
