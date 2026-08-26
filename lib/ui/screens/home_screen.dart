@@ -52,6 +52,11 @@ class HomeScreen extends ConsumerWidget {
               onPressed: ref.read(libraryProvider.notifier).rescan,
             ),
             IconButton(
+              tooltip: 'Mashup',
+              icon: const Icon(Icons.multitrack_audio_rounded),
+              onPressed: () => openMashup(context),
+            ),
+            IconButton(
               tooltip: 'Settings',
               icon: const Icon(Icons.settings_rounded),
               onPressed: () => openSettings(context),

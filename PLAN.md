@@ -98,12 +98,19 @@ recorded with `msPlayed: 0` always, so "listened" could only ever read zero. Lis
 time is now accumulated from forward position movement (seeks and pauses excluded) and
 written when the track ends.
 
+Mashup turned out to be a two-deck DJ mixer: `MashupViewModel` runs two ExoPlayers side
+by side, each with its own volume, tempo (0.5x-2x) and millisecond nudge for beat
+matching, with a crossfader blending between them. Ported as `DeckController` /
+`MashupController` over two extra media_kit players, created with the screen and released
+with it — two idle decoders are not worth keeping alive. The crossfader curve is extracted
+as a pure function so it is testable without an audio device; it reproduces the Android
+app's *linear* fade, which dips ~3 dB mid-blend (documented in the test, not "fixed",
+since changing it would make it a different mixer).
+
 Remaining in this phase:
 - AI playlists (Gemini / OpenAI / Deepseek). The provider abstraction and key storage are
   not written yet; they cannot be verified here without API keys, so they are deliberately
   last.
-- Mashup. `MashupScreen` is 339 lines of Compose whose purpose is not evident from the
-  source without reading it properly — deferred rather than guessed at.
 
 ### Phase 6 — Remote sources
 Jellyfin, Navidrome, Google Drive, Telegram, NetEase, QQMusic — dashboards + streaming
