@@ -7,6 +7,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../data/db/database.dart';
+import '../data/lyrics/lrclib_client.dart';
+import '../data/lyrics/lyrics_repository.dart';
+import '../data/models/lyrics.dart';
 import '../data/models/models.dart';
 import '../data/models/sort_option.dart';
 import '../data/prefs/settings.dart';
@@ -436,3 +439,38 @@ Future<String?> defaultMusicDirectory() async {
   }
   return null;
 }
+
+// ------------------------------------------------------------------ lyrics
+
+final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
+  final repository = LyricsRepository(ref.watch(databaseProvider));
+  ref.onDispose(repository.dispose);
+  return repository;
+});
+
+/// Lyrics for the playing track, resolved through the user's source order.
+///
+/// Keyed on the song id only, so the lookup is not repeated while the track
+/// plays — and, unlike a plain `watch(playerProvider)`, position ticks cannot
+/// restart the network request.
+final currentLyricsProvider = FutureProvider<Lyrics?>((ref) async {
+  final song = ref.watch(playerProvider.select((player) => player.current));
+  if (song == null) return null;
+  final settings = ref.watch(settingsProvider);
+  return ref
+      .watch(lyricsRepositoryProvider)
+      .resolve(
+        song,
+        preference: settings.lyricsSource,
+        allowNetwork: settings.autoFetchLyrics,
+      );
+});
+
+/// Search results for the "fetch lyrics" dialog.
+final lyricsSearchProvider = FutureProvider.family<List<LrcLibResult>, String>((
+  ref,
+  query,
+) async {
+  if (query.trim().isEmpty) return const [];
+  return ref.watch(lyricsRepositoryProvider).search(query: query);
+});

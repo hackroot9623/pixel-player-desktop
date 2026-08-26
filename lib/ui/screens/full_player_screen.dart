@@ -5,6 +5,7 @@ import '../../data/models/models.dart';
 import '../../state/providers.dart';
 import '../components/album_carousel.dart';
 import '../components/common.dart';
+import '../components/lyrics_panel.dart';
 import '../components/playback_controls.dart';
 import '../components/queue_panel.dart';
 import '../components/sleep_timer_sheet.dart';
@@ -75,16 +76,26 @@ class FullPlayerScreen extends ConsumerWidget {
                     final wide = constraints.maxWidth > 1000;
                     final content = _NowPlayingPane(compact: !wide);
                     if (!wide) return content;
+                    // On a wide window the side pane shows either the queue or
+                    // the lyrics; the toolbar toggle picks which.
+                    final showLyrics = ref.watch(
+                      settingsProvider.select((s) => s.showLyricsPane),
+                    );
                     return Row(
                       children: [
                         Expanded(child: content),
-                        const Padding(
-                          padding: EdgeInsets.only(right: 16, bottom: 16),
+                        Padding(
+                          padding: const EdgeInsets.only(right: 16, bottom: 16),
                           child: ClipRRect(
-                            borderRadius: BorderRadius.all(
+                            borderRadius: const BorderRadius.all(
                               Radius.circular(shapeLarge),
                             ),
-                            child: QueuePanel(),
+                            child: SizedBox(
+                              width: 420,
+                              child: showLyrics
+                                  ? LyricsPanel(song: song)
+                                  : const QueuePanel(),
+                            ),
                           ),
                         ),
                       ],
@@ -139,6 +150,7 @@ class _TopBar extends ConsumerWidget {
           ),
           onPressed: () => showSleepTimerSheet(context),
         ),
+        _LyricsToggle(song: song),
         IconButton(
           tooltip: 'Song info',
           icon: const Icon(Icons.info_outline_rounded),
@@ -292,4 +304,37 @@ String? _audioMetaLabel(Song song) {
       '${(song.sampleRate! / 1000).toStringAsFixed(1)} kHz',
   ];
   return parts.isEmpty ? null : parts.join(' · ');
+}
+
+/// Toggles the side lyrics pane on a wide window, or opens the lyrics sheet on
+/// a narrow one.
+class _LyricsToggle extends ConsumerWidget {
+  const _LyricsToggle({required this.song});
+
+  final Song song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final hasLyrics =
+        ref.watch(currentLyricsProvider).valueOrNull?.isEmpty == false;
+    final wide = MediaQuery.sizeOf(context).width > 1000;
+    return IconButton(
+      tooltip: hasLyrics ? 'Lyrics' : 'Lyrics (none found yet)',
+      isSelected: wide && settings.showLyricsPane,
+      icon: Icon(
+        hasLyrics ? Icons.lyrics_rounded : Icons.lyrics_outlined,
+        color: wide && settings.showLyricsPane
+            ? Theme.of(context).colorScheme.primary
+            : null,
+      ),
+      onPressed: () {
+        if (wide) {
+          settings.showLyricsPane = !settings.showLyricsPane;
+        } else {
+          showLyricsSheet(context, song);
+        }
+      },
+    );
+  }
 }

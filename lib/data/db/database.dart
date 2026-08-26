@@ -17,7 +17,7 @@ class MusicDatabase {
 
   final Database _db;
 
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
 
   static Future<MusicDatabase> open(String directory) async {
     await Directory(directory).create(recursive: true);
@@ -34,6 +34,9 @@ class MusicDatabase {
   void _migrate() {
     final current = _db.select('PRAGMA user_version').first.values.first as int;
     if (current >= schemaVersion) return;
+    // Every statement below is `IF NOT EXISTS`, so re-running the whole block
+    // is how an older database picks up tables added by a later version.
+    // Column changes, when they come, will need their own ALTER step here.
     _db.execute('''
       CREATE TABLE IF NOT EXISTS songs (
         id            TEXT PRIMARY KEY,
@@ -128,6 +131,14 @@ class MusicDatabase {
       CREATE TABLE IF NOT EXISTS music_folders (
         path    TEXT PRIMARY KEY,
         enabled INTEGER NOT NULL DEFAULT 1
+      );
+
+      CREATE TABLE IF NOT EXISTS lyrics (
+        song_id   TEXT PRIMARY KEY,
+        content   TEXT NOT NULL,
+        is_synced INTEGER NOT NULL DEFAULT 0,
+        source    TEXT,
+        offset_ms INTEGER NOT NULL DEFAULT 0
       );
     ''');
     _db.execute('PRAGMA user_version = $schemaVersion');
@@ -683,6 +694,44 @@ class MusicDatabase {
 
   int totalPlays() =>
       _db.select('SELECT COUNT(*) AS c FROM playback_history').first['c'] as int;
+
+  // ---------------------------------------------------------------- lyrics
+
+  /// Cached lyrics for a song, or null when nothing has been stored yet.
+  /// Replaces `LyricsDao` + `LyricsEntity`.
+  ({String content, bool isSynced, String? source, int offsetMs})? lyricsFor(
+    String songId,
+  ) {
+    final rows = _db.select('SELECT * FROM lyrics WHERE song_id = ?', [songId]);
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    return (
+      content: row['content'] as String,
+      isSynced: (row['is_synced'] as int) != 0,
+      source: row['source'] as String?,
+      offsetMs: row['offset_ms'] as int,
+    );
+  }
+
+  void saveLyrics(
+    String songId, {
+    required String content,
+    required bool isSynced,
+    String? source,
+    int offsetMs = 0,
+  }) => _db.execute(
+    'INSERT OR REPLACE INTO lyrics(song_id, content, is_synced, source, '
+    'offset_ms) VALUES (?,?,?,?,?)',
+    [songId, content, isSynced ? 1 : 0, source, offsetMs],
+  );
+
+  void setLyricsOffset(String songId, int offsetMs) => _db.execute(
+    'UPDATE lyrics SET offset_ms = ? WHERE song_id = ?',
+    [offsetMs, songId],
+  );
+
+  void deleteLyrics(String songId) =>
+      _db.execute('DELETE FROM lyrics WHERE song_id = ?', [songId]);
 
   // -------------------------------------------------------- search history
 

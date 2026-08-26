@@ -12,6 +12,9 @@ import 'package:pixelplay_desktop/data/models/models.dart';
 import 'package:pixelplay_desktop/data/models/transition.dart';
 import 'package:pixelplay_desktop/data/prefs/settings.dart';
 import 'package:pixelplay_desktop/state/providers.dart';
+import 'package:pixelplay_desktop/data/lyrics/lrc_parser.dart';
+import 'package:pixelplay_desktop/data/models/lyrics.dart';
+import 'package:pixelplay_desktop/ui/components/lyrics_view.dart';
 import 'package:pixelplay_desktop/ui/components/playback_controls.dart';
 import 'package:pixelplay_desktop/ui/components/sleep_timer_sheet.dart';
 import 'package:pixelplay_desktop/ui/components/song_info_sheet.dart';
@@ -315,6 +318,41 @@ void main() {
     expect(find.text('Electronic'), findsOneWidget);
     expect(find.text('44100 Hz'), findsOneWidget);
     expect(find.text('Play next'), findsOneWidget);
+  });
+
+  testWidgets('lyrics view renders synced lines and seeks on click', (
+    tester,
+  ) async {
+    resize(tester, const Size(900, 1000));
+    final lyrics = parseLyrics(
+      '[00:01.00]First line\n[00:05.00]Second line',
+      source: LyricsSource.local,
+    )!;
+    await tester.pumpWidget(host(Scaffold(body: LyricsView(lyrics: lyrics))));
+    await _settle(tester, frames: 3);
+
+    expect(find.text('First line'), findsOneWidget);
+    expect(find.text('Second line'), findsOneWidget);
+
+    // `find.ancestor` walks outwards, so the first match is the line's own
+    // style wrapper rather than one of the inherited ones above it.
+    TextStyle styleOf(String text) => tester
+        .firstWidget<AnimatedDefaultTextStyle>(
+          find.ancestor(
+            of: find.text(text),
+            matching: find.byType(AnimatedDefaultTextStyle),
+          ),
+        )
+        .style;
+
+    // Position 0 sits before the first line, so nothing is emphasised yet.
+    expect(styleOf('First line').fontWeight, FontWeight.w500);
+
+    // Clicking a line asks the player to seek. With no queue loaded that is a
+    // no-op, but it must not throw.
+    await tester.tap(find.text('Second line'));
+    await _settle(tester, frames: 2);
+    expect(tester.takeException(), isNull);
   });
 
   test('transition curves are monotonic and normalised', () {

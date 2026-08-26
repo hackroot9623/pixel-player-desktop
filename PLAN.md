@@ -34,7 +34,7 @@ Reference source: `../PixelPlayer/app/src/main/java/com/theveloper/pixelplay/`
 
 ## Phases
 
-### Phase 1 — Foundation + local library + playback  ✅ (this pass)
+### Phase 1 — Foundation + local library + playback  ✅
 - Window setup, M3 theme port (colors, typography, shapes, dynamic color from album art)
 - SQLite schema: songs, artists, song_artists, albums, genres, playlists, playlist_songs,
   favorites, playback_history, search_history, music_folders
@@ -45,13 +45,29 @@ Reference source: `../PixelPlayer/app/src/main/java/com/theveloper/pixelplay/`
   Favorites + sort options), Search, Album/Artist/Genre/Playlist detail
 - Mini player + full player + queue panel
 
-### Phase 2 — Expressive player & UI polish
-`UnifiedPlayerSheetV2`, `FullPlayerContent`, `WavySliderExpressive`, `RoundedParallaxCarousell`,
-`ExpressiveScrollBar`, smooth-corner shapes (`utils/shapes`), nav corner radius + palette style
-settings, `SongInfoBottomSheet`, multi-select sheets, sleep timer, crossfade/`Transition` editor.
+### Phase 2 — Expressive player & UI polish  ✅
+`WavySliderExpressive`, album carousel (via `CarouselView.weighted`), `ExpressiveScrollBar`,
+smooth-corner/polygon/star shapes, nav corner radius + palette style + player look settings,
+`SongInfoBottomSheet`, multi-select action bar, sleep timer, `Transition` editor.
 
-### Phase 3 — Lyrics
-LRCLIB client, LRC parse + synced scroll display, `LyricsSheet`, lyrics editing, source prefs.
+Deviations from the Android original, deliberately:
+- The two stacked rows of 80 dp full-width transport pills became one dense
+  `TransportBar` with hover, tooltips and keyboard shortcuts — phone ergonomics
+  do not transfer to a desktop window.
+- `TransitionMode.overlap`/`smooth` need two decoders running at once. mpv owns
+  a single playlist here, so they currently render as a fade-out/fade-in pair;
+  true overlap is folded into phase 7 alongside the equalizer.
+
+### Phase 3 — Lyrics  ✅
+LRCLIB client (`dart:io`, no new dependency), LRC parser handling multi-timestamp lines,
+enhanced word timings and `[offset:]`, synced scrolling display with tap-to-seek and
+auto-follow, `LyricsSheet` as a docked pane or modal, search dialog (`FetchLyricsDialog`),
+hand editing, ±0.5 s sync nudge, source priority + auto-fetch prefs, `.lrc`/`.txt` sidecar
+pickup, and a `lyrics` cache table (schema v2).
+
+Not ported: TTML parsing (`TtmlLyricsParser`), romanization/translation tracks
+(`MultiLangRomanizer`) and the per-word bubble animation (`BubblesLine`) — the
+model carries the fields, so they slot in without a schema change.
 
 ### Phase 4 — Tag editor
 Write-side metadata (`audiotags`/TagLib FFI), `EditSongSheet`, `EditMultipleSongsSheet`,

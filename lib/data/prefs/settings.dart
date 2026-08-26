@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/lyrics.dart';
 import '../models/sort_option.dart';
 import '../models/transition.dart';
 import '../scanner/library_scanner.dart';
@@ -124,6 +125,23 @@ class Settings extends ChangeNotifier {
   /// repeat button in `FullPlayerContent`.
   int get repeatMode => _prefs.getInt('repeat_mode') ?? 0;
   set repeatMode(int value) => _set('repeat_mode', value % 3);
+
+  // ----------------------------------------------------------------- lyrics
+
+  /// `LyricsSourcePreference` — which lyrics source is consulted first.
+  LyricsSourcePreference get lyricsSource =>
+      LyricsSourcePreference.values[_prefs.getInt('lyrics_source') ??
+          LyricsSourcePreference.embeddedFirst.index];
+  set lyricsSource(LyricsSourcePreference value) =>
+      _set('lyrics_source', value.index);
+
+  /// Look lyrics up on LRCLIB automatically when a track has none locally.
+  bool get autoFetchLyrics => _prefs.getBool('lyrics_auto_fetch') ?? true;
+  set autoFetchLyrics(bool value) => _set('lyrics_auto_fetch', value);
+
+  /// Whether the full player opens with the lyrics pane instead of the queue.
+  bool get showLyricsPane => _prefs.getBool('lyrics_pane') ?? false;
+  set showLyricsPane(bool value) => _set('lyrics_pane', value);
 
   /// `EditTransitionScreen` — the global transition between tracks.
   TransitionSettings get transition =>

@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/lyrics.dart';
 import '../../data/scanner/library_scanner.dart';
 import '../../state/providers.dart';
 import '../components/common.dart';
@@ -268,6 +269,51 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                   trailing: const Icon(Icons.chevron_right_rounded),
                   onTap: () => openTransitionEditor(context),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          _sectionTitle(context, 'Lyrics'),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.cloud_download_rounded),
+                  title: const Text('Fetch lyrics automatically'),
+                  subtitle: const Text(
+                    'Look tracks up on LRCLIB when nothing local is found',
+                  ),
+                  value: settings.autoFetchLyrics,
+                  onChanged: (value) => settings.autoFetchLyrics = value,
+                ),
+                ListTile(
+                  leading: const Icon(Icons.low_priority_rounded),
+                  title: const Text('Source priority'),
+                  subtitle: Text(settings.lyricsSource.label),
+                  trailing: DropdownButton<LyricsSourcePreference>(
+                    value: settings.lyricsSource,
+                    underline: const SizedBox.shrink(),
+                    items: [
+                      for (final option in LyricsSourcePreference.values)
+                        DropdownMenuItem(
+                          value: option,
+                          child: Text(option.label),
+                        ),
+                    ],
+                    onChanged: (value) {
+                      if (value != null) settings.lyricsSource = value;
+                    },
+                  ),
+                ),
+                const ListTile(
+                  leading: Icon(Icons.info_outline_rounded),
+                  title: Text('Local .lrc files'),
+                  subtitle: Text(
+                    'A .lrc or .txt file named like the track, in the same '
+                    'folder, is picked up automatically',
+                  ),
                 ),
               ],
             ),
