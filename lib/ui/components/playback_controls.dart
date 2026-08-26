@@ -22,10 +22,14 @@ import '../theme/shapes.dart';
 /// while playing, the morphing play/pause glyph, and the "fixed" colour roles
 /// on the three toggles.
 class TransportBar extends ConsumerStatefulWidget {
-  const TransportBar({super.key, this.compact = false});
+  const TransportBar({super.key, this.compact = false, this.showToggles = true});
 
   /// Slightly tighter still, for the mini player.
   final bool compact;
+
+  /// Drops shuffle, repeat and like, leaving only previous/play/next.
+  /// The full bar needs ~235px; without the toggles it needs ~135.
+  final bool showToggles;
 
   @override
   ConsumerState<TransportBar> createState() => _TransportBarState();
@@ -74,15 +78,16 @@ class _TransportBarState extends ConsumerState<TransportBar> {
       mainAxisAlignment: MainAxisAlignment.center,
       spacing: widget.compact ? 4 : 8,
       children: [
-        _IconToggle(
-          size: toggleSize,
-          active: player.shuffle,
-          icon: Icons.shuffle_rounded,
-          tooltip: 'Shuffle',
-          activeColor: scheme.primaryFixed,
-          activeContentColor: scheme.onPrimaryFixed,
-          onTap: player.toggleShuffle,
-        ),
+        if (widget.showToggles)
+          _IconToggle(
+            size: toggleSize,
+            active: player.shuffle,
+            icon: Icons.shuffle_rounded,
+            tooltip: 'Shuffle',
+            activeColor: scheme.primaryFixed,
+            activeContentColor: scheme.onPrimaryFixed,
+            onTap: player.toggleShuffle,
+          ),
         _ScaledButton(
           scale: _scaleFor(_PressTarget.previous),
           duration: _spatial,
@@ -151,34 +156,36 @@ class _TransportBarState extends ConsumerState<TransportBar> {
             },
           ),
         ),
-        _IconToggle(
-          size: toggleSize,
-          active: player.repeatMode != RepeatMode.off,
-          icon: player.repeatMode == RepeatMode.one
-              ? Icons.repeat_one_rounded
-              : Icons.repeat_rounded,
-          tooltip: switch (player.repeatMode) {
-            RepeatMode.off => 'Repeat off',
-            RepeatMode.all => 'Repeat all',
-            RepeatMode.one => 'Repeat one',
-          },
-          activeColor: scheme.secondaryFixed,
-          activeContentColor: scheme.onSecondaryFixed,
-          onTap: player.cycleRepeatMode,
-        ),
-        _IconToggle(
-          size: toggleSize,
-          active: favorite,
-          icon: favorite
-              ? Icons.favorite_rounded
-              : Icons.favorite_border_rounded,
-          tooltip: favorite ? 'Unlike  (L)' : 'Like  (L)',
-          activeColor: scheme.tertiaryFixed,
-          activeContentColor: scheme.onTertiaryFixed,
-          onTap: song == null
-              ? null
-              : () => ref.read(libraryProvider.notifier).toggleFavorite(song),
-        ),
+        if (widget.showToggles) ...[
+          _IconToggle(
+            size: toggleSize,
+            active: player.repeatMode != RepeatMode.off,
+            icon: player.repeatMode == RepeatMode.one
+                ? Icons.repeat_one_rounded
+                : Icons.repeat_rounded,
+            tooltip: switch (player.repeatMode) {
+              RepeatMode.off => 'Repeat off',
+              RepeatMode.all => 'Repeat all',
+              RepeatMode.one => 'Repeat one',
+            },
+            activeColor: scheme.secondaryFixed,
+            activeContentColor: scheme.onSecondaryFixed,
+            onTap: player.cycleRepeatMode,
+          ),
+          _IconToggle(
+            size: toggleSize,
+            active: favorite,
+            icon: favorite
+                ? Icons.favorite_rounded
+                : Icons.favorite_border_rounded,
+            tooltip: favorite ? 'Unlike  (L)' : 'Like  (L)',
+            activeColor: scheme.tertiaryFixed,
+            activeContentColor: scheme.onTertiaryFixed,
+            onTap: song == null
+                ? null
+                : () => ref.read(libraryProvider.notifier).toggleFavorite(song),
+          ),
+        ],
       ],
     );
   }

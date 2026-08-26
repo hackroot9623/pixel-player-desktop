@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/models.dart';
 import '../../state/providers.dart';
 import '../screens/full_player_screen.dart';
 import '../theme/shapes.dart';
@@ -19,10 +20,25 @@ class MiniPlayer extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final player = ref.watch(playerProvider);
-    final song = player.current;
-    final theme = Theme.of(context);
+    final song = ref.watch(playerProvider.select((p) => p.current));
     if (song == null) return const SizedBox.shrink();
+    return MiniPlayerBar(song: song);
+  }
+}
+
+/// The docked bar itself.
+///
+/// Takes the song rather than reading it from the player, so it can be rendered
+/// at narrow widths in a test — which is what the overflowing row needed.
+class MiniPlayerBar extends ConsumerWidget {
+  const MiniPlayerBar({super.key, required this.song});
+
+  final Song song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final player = ref.watch(playerProvider);
+    final theme = Theme.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -53,79 +69,101 @@ class MiniPlayer extends ConsumerWidget {
                 ),
               ),
               Expanded(
-                child: Row(
-                  children: [
-                    InkWell(
-                      onTap: () => openFullPlayer(context),
-                      child: Padding(
-                        padding: const EdgeInsets.all(8),
-                        child: AlbumArt(
-                          path: song.albumArtPath,
-                          size: 60,
-                          radius: shapeMedium,
-                          heroTag: 'now-playing-art',
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: InkWell(
-                        onTap: () => openFullPlayer(context),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 4),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.titleSmall,
-                              ),
-                              Text(
-                                song.displayArtist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                            ],
+                // The row carries ~760px of fixed content when everything is
+                // shown, but the shell is only ~515px wide at its narrowest, so
+                // the optional pieces drop out as space runs out rather than
+                // overflowing.
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final width = constraints.maxWidth;
+                    final showTimes = width >= 560;
+                    final showVolume = width >= 640;
+                    final showQueue = width >= 720;
+                    final showWindowActions = width >= 820;
+                    final showToggles = width >= 470;
+
+                    return Row(
+                      children: [
+                        InkWell(
+                          onTap: () => openFullPlayer(context),
+                          child: Padding(
+                            padding: const EdgeInsets.all(8),
+                            child: AlbumArt(
+                              path: song.albumArtPath,
+                              size: 60,
+                              radius: shapeMedium,
+                              heroTag: 'now-playing-art',
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    PositionBuilder(
-                      builder: (context, position) => Text(
-                        '${formatDuration(position)} / '
-                        '${formatDuration(player.duration)}',
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
+                        Expanded(
+                          child: InkWell(
+                            onTap: () => openFullPlayer(context),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                                  Text(
+                                    song.displayArtist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    const TransportBar(compact: true),
-                    const SizedBox(width: 8),
-                    const _VolumeControl(),
-                    IconButton(
-                      tooltip: 'Queue',
-                      icon: const Icon(Icons.queue_music_rounded),
-                      onPressed: () => showQueuePanel(context),
-                    ),
-                    IconButton(
-                      tooltip: 'Shrink to the player',
-                      icon: const Icon(Icons.compress_rounded),
-                      onPressed: () =>
-                          applyWindowSizePreset(WindowSizePreset.player),
-                    ),
-                    IconButton(
-                      tooltip: 'Expand',
-                      icon: const Icon(Icons.keyboard_arrow_up_rounded),
-                      onPressed: () => openFullPlayer(context),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
+                        if (showTimes) ...[
+                          PositionBuilder(
+                            builder: (context, position) => Text(
+                              '${formatDuration(position)} / '
+                              '${formatDuration(player.duration)}',
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        TransportBar(compact: true, showToggles: showToggles),
+                        const SizedBox(width: 8),
+                        if (showVolume) const _VolumeControl(),
+                        if (showQueue)
+                          IconButton(
+                            tooltip: 'Queue',
+                            icon: const Icon(Icons.queue_music_rounded),
+                            onPressed: () => showQueuePanel(context),
+                          ),
+                        if (showWindowActions) ...[
+                          IconButton(
+                            tooltip: 'Shrink to the player',
+                            icon: const Icon(Icons.compress_rounded),
+                            onPressed: () =>
+                                applyWindowSizePreset(WindowSizePreset.player),
+                          ),
+                          IconButton(
+                            tooltip: 'Expand',
+                            icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                            onPressed: () => openFullPlayer(context),
+                          ),
+                        ],
+                        const SizedBox(width: 4),
+                      ],
+                    );
+                  },
                 ),
               ),
             ],

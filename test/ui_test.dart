@@ -18,6 +18,7 @@ import 'package:pixelplay_desktop/data/models/lyrics.dart';
 import 'package:pixelplay_desktop/ui/components/album_art.dart';
 import 'package:pixelplay_desktop/ui/components/album_carousel.dart';
 import 'package:pixelplay_desktop/ui/components/lyrics_view.dart';
+import 'package:pixelplay_desktop/ui/components/mini_player.dart';
 import 'package:pixelplay_desktop/ui/components/playback_controls.dart';
 import 'package:pixelplay_desktop/ui/components/sleep_timer_sheet.dart';
 import 'package:pixelplay_desktop/ui/components/song_info_sheet.dart';
@@ -674,6 +675,106 @@ void main() {
       // width, not just area.
       expect(isCompactSize(const Size(400, 1200)), isTrue);
       expect(isCompactSize(const Size(1200, 300)), isTrue);
+    });
+
+    // Overflow throws in debug builds, so `takeException` is the assertion:
+    // these render at the exact sizes the window can be dragged to.
+    testWidgets('the docked bar fits every shell width, with a track', (
+      tester,
+    ) async {
+      // This is the row that overflowed: it carries ~760px of fixed content
+      // when everything is shown. A long title and artist make it worse.
+      final song = db.allSongs().first;
+      for (final width in const [
+        440.0,
+        470.0,
+        515.0, // the shell's content width at the narrowest window
+        560.0,
+        640.0,
+        720.0,
+        820.0,
+        1200.0,
+      ]) {
+        await tester.pumpWidget(
+          host(
+            Scaffold(
+              body: SizedBox(width: width, child: MiniPlayerBar(song: song)),
+            ),
+          ),
+        );
+        await _settle(tester, frames: 3);
+        expect(tester.takeException(), isNull, reason: 'at ${width}px wide');
+      }
+    });
+
+    testWidgets('the compact layouts fit at every window minimum, with a '
+        'track', (tester) async {
+      final song = db.allSongs().first;
+      for (final size in const [
+        Size(320, 180),
+        Size(420, 200),
+        Size(619, 439),
+      ]) {
+        resize(tester, size);
+        await tester.pumpWidget(
+          host(
+            Scaffold(
+              body: CompactStripPlayer(
+                song: song,
+                presets: const SizedBox.shrink(),
+                available: size,
+              ),
+            ),
+          ),
+        );
+        await _settle(tester, frames: 3);
+        expect(tester.takeException(), isNull, reason: 'strip at $size');
+      }
+
+      for (final size in const [Size(360, 460), Size(520, 680)]) {
+        resize(tester, size);
+        await tester.pumpWidget(
+          host(
+            Scaffold(
+              body: CompactPortraitPlayer(
+                song: song,
+                presets: const SizedBox.shrink(),
+                available: size,
+              ),
+            ),
+          ),
+        );
+        await _settle(tester, frames: 3);
+        expect(tester.takeException(), isNull, reason: 'portrait at $size');
+      }
+    });
+
+    testWidgets('nothing overflows at the shell minimum', (tester) async {
+      // The narrowest window that still shows the full shell.
+      resize(tester, const Size(compactWidthBreakpoint, 700));
+      await tester.pumpWidget(host(const AppShell()));
+      await _settle(tester, frames: 4);
+      expect(tester.takeException(), isNull);
+
+      resize(tester, const Size(700, compactHeightBreakpoint));
+      await _settle(tester, frames: 4);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('nothing overflows at the window minimum', (tester) async {
+      // Every shape the window can be dragged or preset to.
+      for (final size in const [
+        Size(320, 180),
+        Size(420, 200),
+        Size(360, 460),
+        Size(520, 680),
+        Size(619, 439),
+      ]) {
+        resize(tester, size);
+        await tester.pumpWidget(host(const CompactShell()));
+        await _settle(tester, frames: 4);
+        expect(tester.takeException(), isNull, reason: 'at $size');
+      }
     });
 
     test('the arrangement follows the available height', () {

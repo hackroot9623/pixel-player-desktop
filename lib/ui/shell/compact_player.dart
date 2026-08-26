@@ -78,12 +78,12 @@ class CompactPlayer extends ConsumerWidget {
         if (song == null) return _Idle(presets: presets);
 
         return switch (layout) {
-          CompactLayout.portrait => _PortraitPlayer(
+          CompactLayout.portrait => CompactPortraitPlayer(
             song: song,
             presets: presets,
             available: size,
           ),
-          CompactLayout.strip => _StripPlayer(
+          CompactLayout.strip => CompactStripPlayer(
             song: song,
             presets: presets,
             available: size,
@@ -140,8 +140,12 @@ class _Idle extends StatelessWidget {
 }
 
 /// Tall window: the artwork gets the room it deserves.
-class _PortraitPlayer extends ConsumerWidget {
-  const _PortraitPlayer({
+///
+/// Takes the song rather than reading the player, so it can be rendered — and
+/// checked for overflow at the smallest window sizes — without an audio device.
+class CompactPortraitPlayer extends ConsumerWidget {
+  const CompactPortraitPlayer({
+    super.key,
     required this.song,
     required this.presets,
     required this.available,
@@ -204,8 +208,9 @@ class _PortraitPlayer extends ConsumerWidget {
 }
 
 /// Short window: one horizontal strip.
-class _StripPlayer extends ConsumerWidget {
-  const _StripPlayer({
+class CompactStripPlayer extends ConsumerWidget {
+  const CompactStripPlayer({
+    super.key,
     required this.song,
     required this.presets,
     required this.available,
@@ -220,7 +225,12 @@ class _StripPlayer extends ConsumerWidget {
     final player = ref.watch(playerProvider);
     final theme = Theme.of(context);
     final tiny = available.width < _tinyWidth;
-    final side = (available.height - 20).clamp(48.0, 132.0);
+    // Bounded by width as well as height: a short, narrow window would
+    // otherwise give the artwork room the transport needs.
+    final side = (available.height - 20).clamp(
+      48.0,
+      (available.width * 0.34).clamp(48.0, 132.0),
+    );
 
     return Padding(
       padding: const EdgeInsets.all(10),
@@ -268,7 +278,9 @@ class _StripPlayer extends ConsumerWidget {
                     ],
                   ),
                 _SeekBar(player: player, showTimes: !tiny),
-                const TransportBar(compact: true),
+                // The full compact bar needs ~235px; at the smallest window
+                // sizes only the three transport buttons fit.
+                TransportBar(compact: true, showToggles: !tiny),
               ],
             ),
           ),
