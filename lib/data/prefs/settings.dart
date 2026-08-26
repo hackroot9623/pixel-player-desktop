@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../ai/ai_provider.dart';
 import '../models/lyrics.dart';
 import '../models/sort_option.dart';
 import '../models/transition.dart';
@@ -207,6 +208,61 @@ class Settings extends ChangeNotifier {
     _prefs.setInt('last_position_ms', positionMs);
     // Snapshots are written on every track change; no listener needs them.
   }
+
+  // --------------------------------------------------------------------- ai
+
+  /// Which provider the AI features talk to. Ported from
+  /// `AiPreferencesRepository`, which keeps a key, model, base URL and system
+  /// prompt per provider so switching back and forth does not lose settings.
+  AiProvider get aiProvider =>
+      AiProvider.fromStorageKey(_prefs.getString('ai_provider'));
+  set aiProvider(AiProvider value) => _set('ai_provider', value.storageKey);
+
+  /// The API key for [provider].
+  ///
+  /// Stored in plain text, as on Android — shared_preferences is a JSON file in
+  /// the user's home directory, so this is as private as the user's own
+  /// account, and no more. A keyring-backed store would be better and is worth
+  /// doing before this ships widely.
+  String apiKey(AiProvider provider) =>
+      _prefs.getString('ai_${provider.storageKey}_key')?.trim() ?? '';
+  void setApiKey(AiProvider provider, String value) =>
+      _set('ai_${provider.storageKey}_key', value.trim());
+
+  /// Empty means "the provider's default model".
+  String aiModel(AiProvider provider) =>
+      _prefs.getString('ai_${provider.storageKey}_model') ?? '';
+  void setAiModel(AiProvider provider, String value) =>
+      _set('ai_${provider.storageKey}_model', value.trim());
+
+  /// Only meaningful for providers with [AiProvider.hasConfigurableUrl].
+  String aiBaseUrl(AiProvider provider) =>
+      _prefs.getString('ai_${provider.storageKey}_url')?.trim() ?? '';
+  void setAiBaseUrl(AiProvider provider, String value) =>
+      _set('ai_${provider.storageKey}_url', value.trim());
+
+  double get aiTemperature => _prefs.getDouble('ai_temperature') ?? 0.7;
+  set aiTemperature(double value) =>
+      _set('ai_temperature', value.clamp(0, 2));
+
+  double get aiTopP => _prefs.getDouble('ai_top_p') ?? 0.95;
+  set aiTopP(double value) => _set('ai_top_p', value.clamp(0, 1));
+
+  int get aiTopK => _prefs.getInt('ai_top_k') ?? 64;
+  set aiTopK(int value) => _set('ai_top_k', value.clamp(1, 256));
+
+  int get aiMaxTokens => _prefs.getInt('ai_max_tokens') ?? 4096;
+  set aiMaxTokens(int value) => _set('ai_max_tokens', value.clamp(256, 32768));
+
+  /// How many candidate tracks the model is shown.
+  int get aiSampleSize => _prefs.getInt('ai_sample_size') ?? 40;
+  set aiSampleSize(int value) => _set('ai_sample_size', value.clamp(10, 200));
+
+  bool get aiSafeTokenLimit => _prefs.getBool('ai_safe_tokens') ?? true;
+  set aiSafeTokenLimit(bool value) => _set('ai_safe_tokens', value);
+
+  bool get aiExtendedFields => _prefs.getBool('ai_extended_fields') ?? false;
+  set aiExtendedFields(bool value) => _set('ai_extended_fields', value);
 
   // ------------------------------------------------------------------- misc
 

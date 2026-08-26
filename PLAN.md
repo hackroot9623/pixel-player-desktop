@@ -107,10 +107,23 @@ as a pure function so it is testable without an audio device; it reproduces the 
 app's *linear* fade, which dips ~3 dB mid-blend (documented in the test, not "fixed",
 since changing it would make it a different mixer).
 
-Remaining in this phase:
-- AI playlists (Gemini / OpenAI / Deepseek). The provider abstraction and key storage are
-  not written yet; they cannot be verified here without API keys, so they are deliberately
-  last.
+AI playlists are in: all 11 providers from `AiProvider`, a key/model/endpoint stored per
+provider, model listing and a connection test, request-size and generation settings, and a
+sheet that describes a mood in words and gets back a playlist of real library tracks.
+
+`GeminiAiClient` and `GenericOpenAiClient` collapse into one client, since only the request
+and response shapes differ. Two deliberate changes: the model is handed pool *indices*
+rather than song IDs, because a song ID here is its absolute path and sending it would give
+a third-party API the user's home directory for nothing; and the key travels in a header,
+never the query string. Model auto-recovery is kept (providers retire model names, and a
+stored dead model should not read as "AI is broken"); the Android response cache, provider
+fallback chains and per-provider cooldowns are not ported yet.
+
+Not verifiable here: no API keys, so nothing has run against a live endpoint. The tests fake
+the HTTP layer, which does cover the parts most likely to break — response cleaning, error
+mapping, model recovery, and exactly what leaves the machine.
+
+Phase 5 is complete.
 
 ### Phase 6 — Remote sources
 Jellyfin, Navidrome, Google Drive, Telegram, NetEase, QQMusic — dashboards + streaming

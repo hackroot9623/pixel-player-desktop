@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/models.dart';
 import '../../state/providers.dart';
 import '../components/album_art.dart';
+import 'ai_playlist_sheet.dart';
 import '../components/collage.dart';
 import '../components/common.dart';
 import '../components/library_widgets.dart';
@@ -57,6 +58,11 @@ class HomeScreen extends ConsumerWidget {
               tooltip: 'Rescan library',
               icon: const Icon(Icons.refresh_rounded),
               onPressed: ref.read(libraryProvider.notifier).rescan,
+            ),
+            IconButton(
+              tooltip: 'Build a playlist with AI',
+              icon: const Icon(Icons.auto_awesome_rounded),
+              onPressed: () => showAiPlaylistSheet(context),
             ),
             IconButton(
               tooltip: 'Mashup',

@@ -15,6 +15,8 @@ import '../data/models/models.dart';
 import '../data/models/sort_option.dart';
 import '../data/prefs/settings.dart';
 import '../data/scanner/library_scanner.dart';
+import '../data/ai/ai_client.dart';
+import '../data/ai/ai_playlist_generator.dart';
 import '../data/smart/smart_playlists.dart';
 import '../data/tags/tag_writer.dart';
 import '../player/player_service.dart';
@@ -179,7 +181,11 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
     reload();
   }
 
-  Playlist createPlaylist(String name, {List<String> songIds = const []}) {
+  Playlist createPlaylist(
+    String name, {
+    List<String> songIds = const [],
+    bool aiGenerated = false,
+  }) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final playlist = Playlist(
       id: 'pl_$now',
@@ -187,6 +193,7 @@ class LibraryNotifier extends StateNotifier<LibraryState> {
       songIds: songIds,
       createdAt: now,
       lastModified: now,
+      isAiGenerated: aiGenerated,
     );
     _db.upsertPlaylist(playlist);
     reload();
@@ -302,6 +309,95 @@ final recentlyPlayedProvider = Provider<List<Song>>((ref) {
   final db = ref.watch(databaseProvider);
   return db.songsByIds(db.recentlyPlayedIds());
 });
+
+/// The AI client for whichever provider is configured.
+///
+/// Rebuilt when the provider, key or endpoint changes, so a key pasted in
+/// settings takes effect without a restart.
+final aiClientProvider = Provider<AiClient>((ref) {
+  final settings = ref.watch(settingsProvider);
+  final provider = settings.aiProvider;
+  final client = AiClient(
+    provider: provider,
+    apiKey: settings.apiKey(provider),
+    baseUrl: provider.hasConfigurableUrl
+        ? settings.aiBaseUrl(provider)
+        : null,
+  );
+  ref.onDispose(client.close);
+  return client;
+});
+
+/// Whether the AI features can be used at all.
+final aiConfiguredProvider = Provider<bool>((ref) {
+  final settings = ref.watch(settingsProvider);
+  final provider = settings.aiProvider;
+  if (provider.requiresApiKey && settings.apiKey(provider).isEmpty) {
+    return false;
+  }
+  return !provider.hasConfigurableUrl ||
+      settings.aiBaseUrl(provider).isNotEmpty ||
+      provider.baseUrl.isNotEmpty;
+});
+
+/// The generation knobs from settings.
+final aiParamsProvider = Provider<AiParams>((ref) {
+  final settings = ref.watch(settingsProvider);
+  return AiParams(
+    temperature: settings.aiTemperature,
+    topP: settings.aiTopP,
+    topK: settings.aiTopK,
+    maxTokens: settings.aiMaxTokens,
+  );
+});
+
+final aiSampleOptionsProvider = Provider<AiSampleOptions>((ref) {
+  final settings = ref.watch(settingsProvider);
+  return AiSampleOptions(
+    sampleSize: settings.aiSampleSize,
+    safeTokenLimit: settings.aiSafeTokenLimit,
+    includeExtendedFields: settings.aiExtendedFields,
+  );
+});
+
+/// The models the configured key can use, for the picker in AI settings.
+final aiModelsProvider = FutureProvider.autoDispose<List<String>>(
+  (ref) => ref.watch(aiClientProvider).listModels(),
+);
+
+/// Builds a playlist from a written request.
+///
+/// Returns the tracks; it does not save or play them, so the sheet can show
+/// what it got before the user commits to it.
+Future<List<Song>> generateAiPlaylist(
+  WidgetRef ref, {
+  required String request,
+  int minLength = 15,
+  int maxLength = 25,
+}) async {
+  final settings = ref.read(settingsProvider);
+  final provider = settings.aiProvider;
+  final generator = AiPlaylistGenerator(ref.read(aiClientProvider));
+
+  final result = await generator.generate(
+    request: request,
+    library: ref.read(libraryProvider).songs,
+    stats: ref.read(listeningStatsProvider),
+    minLength: minLength,
+    maxLength: maxLength,
+    model: settings.aiModel(provider),
+    params: ref.read(aiParamsProvider),
+    options: ref.read(aiSampleOptionsProvider),
+  );
+
+  // If the chosen model was retired and the client fell back, remember the one
+  // that worked rather than failing the same way on every future request.
+  if (result.model != settings.aiModel(provider) &&
+      result.model.isNotEmpty) {
+    settings.setAiModel(provider, result.model);
+  }
+  return result.songs;
+}
 
 /// The listening facts the smart playlists and the mix are built from.
 final listeningStatsProvider = Provider<ListeningStats>((ref) {

@@ -6,6 +6,7 @@ import 'screens/album_detail_screen.dart';
 import 'screens/artist_detail_screen.dart';
 import 'screens/folder_screen.dart';
 import 'screens/genre_detail_screen.dart';
+import 'screens/ai_settings_screen.dart';
 import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/smart_playlist_screen.dart';
@@ -42,6 +43,9 @@ void openStats(BuildContext context) => _push(context, const StatsScreen());
 
 void openMashup(BuildContext context) =>
     _push(context, const MashupScreen());
+
+void openAiSettings(BuildContext context) =>
+    _push(context, const AiSettingsScreen());
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());

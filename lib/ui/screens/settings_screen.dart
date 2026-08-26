@@ -186,6 +186,17 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openWindowSettings(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.auto_awesome_rounded),
+                  title: const Text('AI'),
+                  subtitle: Text(
+                    ref.watch(aiConfiguredProvider)
+                        ? '${settings.aiProvider.displayName} · ready'
+                        : 'Not set up',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openAiSettings(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.play_circle_outline_rounded),
                   title: const Text('Player look'),
                   subtitle: Text(
