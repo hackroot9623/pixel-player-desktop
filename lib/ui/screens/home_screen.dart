@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/models/models.dart';
 import '../../state/providers.dart';
 import '../components/album_art.dart';
+import '../components/collage.dart';
 import '../components/common.dart';
 import '../components/library_widgets.dart';
 import '../navigation.dart';
@@ -42,9 +43,15 @@ class HomeScreen extends ConsumerWidget {
     return CustomScrollView(
       slivers: [
         SliverAppBar.large(
-          expandedHeight: 200,
+          expandedHeight: 260,
           title: const Text('PixelPlayer'),
-          flexibleSpace: _GradientHeader(songCount: library.songs.length),
+          flexibleSpace: _GradientHeader(
+            songCount: library.songs.length,
+            artworkPaths: [
+              for (final song in (recent.isEmpty ? mix : recent).take(6))
+                song.albumArtPath,
+            ],
+          ),
           actions: [
             IconButton(
               tooltip: 'Rescan library',
@@ -107,9 +114,15 @@ class HomeScreen extends ConsumerWidget {
 }
 
 class _GradientHeader extends StatelessWidget {
-  const _GradientHeader({required this.songCount});
+  const _GradientHeader({
+    required this.songCount,
+    this.artworkPaths = const [],
+  });
 
   final int songCount;
+
+  /// Covers of the most recently played tracks, for the decorative scatter.
+  final List<String?> artworkPaths;
 
   @override
   Widget build(BuildContext context) {
@@ -127,7 +140,21 @@ class _GradientHeader extends StatelessWidget {
             ],
           ),
         ),
-        child: Padding(
+        child: Stack(
+          children: [
+            // Right-hand side only: on a wide banner the shapes would
+            // otherwise sit behind the greeting and fight it for contrast.
+            Positioned(
+              top: 0,
+              bottom: 0,
+              right: 0,
+              width: 520,
+              child: AlbumArtScatter(
+                artworkPaths: artworkPaths,
+                opacity: 0.85,
+              ),
+            ),
+            Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.end,
@@ -148,6 +175,8 @@ class _GradientHeader extends StatelessWidget {
               ),
             ],
           ),
+            ),
+          ],
         ),
       ),
     );
