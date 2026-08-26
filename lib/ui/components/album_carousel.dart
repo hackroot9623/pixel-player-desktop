@@ -52,8 +52,15 @@ class _AlbumCarouselState extends State<AlbumCarousel> {
   /// `didUpdateWidget`, so a swapped-in controller was always detached, and
   /// disposing the old one mid-frame left dangling dependents behind.
   late final CarouselController _controller = CarouselController(
-    initialItem: widget.index,
+    initialItem: _safeIndex,
   );
+
+  /// The queue can be edited (a track removed, the queue replaced) between the
+  /// player updating its index and this widget rebuilding, so the incoming
+  /// index is not always in range. An out-of-range `initialItem` puts the
+  /// carousel at a scroll offset with nothing in it — a blank player.
+  int get _safeIndex =>
+      widget.songs.isEmpty ? 0 : widget.index.clamp(0, widget.songs.length - 1);
 
   @override
   void dispose() {
@@ -66,9 +73,13 @@ class _AlbumCarouselState extends State<AlbumCarousel> {
     super.didUpdateWidget(old);
     // Follow the playing track when it changes underneath us — mpv advanced, or
     // the user picked something elsewhere.
+    //
+    // Deliberately not resyncing when only the queue contents change:
+    // CarouselView already re-lays-out for a new child list, and forcing a
+    // scroll on top of that fought it and landed on the wrong item.
     if (widget.index != old.index && _controller.hasClients) {
       _controller.animateToItem(
-        widget.index,
+        _safeIndex,
         duration: const Duration(milliseconds: 380),
         curve: Curves.easeOutCubic,
       );
@@ -92,7 +103,11 @@ class _AlbumCarouselState extends State<AlbumCarousel> {
           controller: _controller,
           // Identity-stable const list; see CarouselStyle.flexWeights.
           flexWeights: widget.style.flexWeights,
-          consumeMaxWeight: false,
+          // Must stay true (the default). With it false the layout cannot
+          // scroll far enough for the last items to reach the primary slot, so
+          // the playing track ended up rendered in the narrow peek slot while
+          // a neighbour got the big one.
+          consumeMaxWeight: true,
           itemSnapping: true,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.all(Radius.circular(28)),

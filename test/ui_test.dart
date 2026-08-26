@@ -15,6 +15,7 @@ import 'package:pixelplay_desktop/ui/components/window_controls.dart';
 import 'package:pixelplay_desktop/state/providers.dart';
 import 'package:pixelplay_desktop/data/lyrics/lrc_parser.dart';
 import 'package:pixelplay_desktop/data/models/lyrics.dart';
+import 'package:pixelplay_desktop/ui/components/album_art.dart';
 import 'package:pixelplay_desktop/ui/components/album_carousel.dart';
 import 'package:pixelplay_desktop/ui/components/lyrics_view.dart';
 import 'package:pixelplay_desktop/ui/components/playback_controls.dart';
@@ -84,6 +85,7 @@ void main() {
     albumId: 1,
     path: _writeSilentWav(p.join(tmp.path, '$id.wav')).path,
     duration: 210000,
+    albumArtPath: '/tmp/art-$id.jpg',
     mimeType: 'audio/mpeg',
     bitrate: 320000,
     sampleRate: 44100,
@@ -511,6 +513,150 @@ void main() {
     await _settle(tester, frames: 2);
     expect(find.byIcon(Icons.close_rounded), findsNothing);
     expect(find.byType(Tooltip), findsNWidgets(3));
+  });
+
+  group('album carousel keeps the playing track in the big slot', () {
+    /// The widest laid-out cover is the one occupying the primary slot.
+    String? widestCoverPath(WidgetTester tester) {
+      final finder = find.byType(AlbumArt);
+      String? best;
+      var bestWidth = -1.0;
+      for (var i = 0; i < finder.evaluate().length; i++) {
+        final element = finder.at(i);
+        final width = tester.getSize(element).width;
+        if (width > bestWidth) {
+          bestWidth = width;
+          best = tester.widget<AlbumArt>(element).path;
+        }
+      }
+      return best;
+    }
+
+    Widget carousel(List<Song> songs, int index) => Scaffold(
+      body: SizedBox(
+        width: 620,
+        child: AlbumCarousel(
+          height: 300,
+          songs: songs,
+          index: index,
+          playing: true,
+          style: CarouselStyle.onePeek,
+          onTapCurrent: (_) {},
+          onTapOther: (_) {},
+        ),
+      ),
+    );
+
+    testWidgets('when opened on a track partway through the queue', (
+      tester,
+    ) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      // Opening the full player on track 3 must show track 3, not track 0.
+      await tester.pumpWidget(host(carousel(songs, 3)));
+      await _settle(tester, frames: 8);
+      expect(widestCoverPath(tester), songs[3].albumArtPath);
+    });
+
+    testWidgets('with a single-song queue it fills the width', (tester) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      // Tapping a row in a list plays just that song, so a one-item queue is
+      // the common case, not an edge case.
+      await tester.pumpWidget(host(carousel([songs.first], 0)));
+      await _settle(tester, frames: 8);
+
+      final covers = find.byType(AlbumArt);
+      expect(covers, findsOneWidget);
+      final width = tester.getSize(covers).width;
+      expect(
+        width,
+        greaterThan(400),
+        reason: 'a lone cover must not be squeezed into the small peek slot; '
+            'got ${width.toStringAsFixed(1)} of 620',
+      );
+    });
+
+    testWidgets('with fewer songs than peek slots', (tester) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      await tester.pumpWidget(
+        host(
+          Scaffold(
+            body: SizedBox(
+              width: 620,
+              child: AlbumCarousel(
+                height: 300,
+                songs: songs.take(2).toList(),
+                index: 1,
+                playing: true,
+                // Three slots, two songs.
+                style: CarouselStyle.twoPeek,
+                onTapCurrent: (_) {},
+                onTapOther: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await _settle(tester, frames: 8);
+      expect(widestCoverPath(tester), songs[1].albumArtPath);
+    });
+
+    testWidgets('on the last track of the queue', (tester) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      await tester.pumpWidget(host(carousel(songs, songs.length - 1)));
+      await _settle(tester, frames: 8);
+      expect(
+        widestCoverPath(tester),
+        songs.last.albumArtPath,
+        reason: 'the last track must still get the big slot',
+      );
+    });
+
+    testWidgets('with an index past the end of the queue', (tester) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      // A stale index (the queue was edited under us) must not leave the
+      // carousel parked at an offset with nothing in it.
+      await tester.pumpWidget(host(carousel(songs.take(2).toList(), 9)));
+      await _settle(tester, frames: 8);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(AlbumArt), findsWidgets);
+      expect(widestCoverPath(tester), songs[1].albumArtPath);
+    });
+
+    testWidgets('after the queue is replaced from another screen', (
+      tester,
+    ) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      await tester.pumpWidget(host(carousel(songs, 4)));
+      await _settle(tester, frames: 8);
+
+      // Pressing play on Home swaps the whole queue. The index can land back on
+      // 0, so nothing tells the carousel to move — it used to keep the old
+      // scroll offset and show a stale item, or blank space.
+      final replacement = [songs[2], songs[0]];
+      await tester.pumpWidget(host(carousel(replacement, 0)));
+      await _settle(tester, frames: 8);
+      expect(widestCoverPath(tester), replacement[0].albumArtPath);
+    });
+
+    testWidgets('after the queue shrinks below the previous index', (
+      tester,
+    ) async {
+      resize(tester, const Size(900, 900));
+      final songs = db.allSongs();
+      await tester.pumpWidget(host(carousel(songs, 4)));
+      await _settle(tester, frames: 8);
+
+      await tester.pumpWidget(host(carousel([songs.first], 0)));
+      await _settle(tester, frames: 8);
+      expect(tester.takeException(), isNull);
+      expect(widestCoverPath(tester), songs.first.albumArtPath);
+    });
   });
 
   test('carousel weights are identity-stable', () {
