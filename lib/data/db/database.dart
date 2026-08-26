@@ -839,11 +839,32 @@ class MusicDatabase {
 
   // --------------------------------------------------------------- history
 
-  void recordPlayback(String songId, {int msPlayed = 0}) => _db.execute(
-    'INSERT INTO playback_history(song_id, played_at, ms_played) '
-    'VALUES (?,?,?)',
-    [songId, DateTime.now().millisecondsSinceEpoch, msPlayed],
+  /// Opens a listening event and returns its row id.
+  ///
+  /// The duration is filled in when the track stops, so "recently played"
+  /// updates the moment something starts while the time listened stays honest.
+  int startPlayback(String songId, {DateTime? at}) {
+    _db.execute(
+      'INSERT INTO playback_history(song_id, played_at, ms_played) '
+      'VALUES (?,?,0)',
+      [songId, (at ?? DateTime.now()).millisecondsSinceEpoch],
+    );
+    return _db.lastInsertRowId;
+  }
+
+  /// Records how much of the track was actually heard.
+  void finishPlayback(int eventId, int msPlayed) => _db.execute(
+    'UPDATE playback_history SET ms_played = ? WHERE id = ?',
+    [msPlayed < 0 ? 0 : msPlayed, eventId],
   );
+
+  /// Whole event in one call, for imports and tests.
+  void recordPlayback(String songId, {int msPlayed = 0, DateTime? at}) =>
+      _db.execute(
+        'INSERT INTO playback_history(song_id, played_at, ms_played) '
+        'VALUES (?,?,?)',
+        [songId, (at ?? DateTime.now()).millisecondsSinceEpoch, msPlayed],
+      );
 
   /// Distinct song ids, most recently played first.
   List<String> recentlyPlayedIds({int limit = 64}) => _db
@@ -909,6 +930,140 @@ class MusicDatabase {
 
   void deleteLyrics(String songId) =>
       _db.execute('DELETE FROM lyrics WHERE song_id = ?', [songId]);
+
+  /// Listening time per hour of the day (0-23), for the daily-rhythm chart.
+  Map<int, int> listeningByHour({DateTime? since}) {
+    final rows = _db.select(
+      'SELECT played_at, ms_played FROM playback_history WHERE played_at >= ?',
+      [since?.millisecondsSinceEpoch ?? 0],
+    );
+    final byHour = <int, int>{};
+    for (final row in rows) {
+      final at = DateTime.fromMillisecondsSinceEpoch(row['played_at'] as int);
+      byHour[at.hour] = (byHour[at.hour] ?? 0) + (row['ms_played'] as int);
+    }
+    return byHour;
+  }
+
+  /// Listening time per calendar day, most recent [days] days, oldest first.
+  ///
+  /// Empty days are present with a zero, so a chart does not have to invent the
+  /// gaps.
+  List<(DateTime day, int ms)> listeningByDay({int days = 30}) {
+    final today = DateTime.now();
+    final start = DateTime(
+      today.year,
+      today.month,
+      today.day,
+    ).subtract(Duration(days: days - 1));
+    final totals = <DateTime, int>{
+      for (var i = 0; i < days; i++) start.add(Duration(days: i)): 0,
+    };
+    for (final row in _db.select(
+      'SELECT played_at, ms_played FROM playback_history WHERE played_at >= ?',
+      [start.millisecondsSinceEpoch],
+    )) {
+      final at = DateTime.fromMillisecondsSinceEpoch(row['played_at'] as int);
+      final day = DateTime(at.year, at.month, at.day);
+      if (!totals.containsKey(day)) continue;
+      totals[day] = totals[day]! + (row['ms_played'] as int);
+    }
+    final ordered = totals.keys.toList()..sort();
+    return [for (final day in ordered) (day, totals[day]!)];
+  }
+
+  /// Consecutive days up to today with any listening at all.
+  int listeningStreakDays() {
+    final days = <DateTime>{};
+    for (final row in _db.select(
+      'SELECT played_at FROM playback_history WHERE ms_played > 0',
+    )) {
+      final at = DateTime.fromMillisecondsSinceEpoch(row['played_at'] as int);
+      days.add(DateTime(at.year, at.month, at.day));
+    }
+    if (days.isEmpty) return 0;
+    final now = DateTime.now();
+    var cursor = DateTime(now.year, now.month, now.day);
+    // A streak may legitimately end yesterday, if today has no listening yet.
+    if (!days.contains(cursor)) {
+      cursor = cursor.subtract(const Duration(days: 1));
+      if (!days.contains(cursor)) return 0;
+    }
+    var streak = 0;
+    while (days.contains(cursor)) {
+      streak++;
+      cursor = cursor.subtract(const Duration(days: 1));
+    }
+    return streak;
+  }
+
+  /// Songs ranked by time listened rather than play count — a track skipped
+  /// twenty times is not a favourite.
+  List<(String songId, int ms, int plays)> topSongsByTime({
+    int limit = 25,
+    DateTime? since,
+  }) => _db
+      .select(
+        'SELECT song_id, SUM(ms_played) AS ms, COUNT(*) AS plays '
+        'FROM playback_history WHERE played_at >= ? '
+        'GROUP BY song_id HAVING ms > 0 ORDER BY ms DESC LIMIT ?',
+        [since?.millisecondsSinceEpoch ?? 0, limit],
+      )
+      .map((r) => (r['song_id'] as String, r['ms'] as int, r['plays'] as int))
+      .toList();
+
+  /// Time listened per artist, joined through the song's artists.
+  List<(int artistId, String name, int ms)> topArtistsByTime({
+    int limit = 25,
+    DateTime? since,
+  }) => _db
+      .select(
+        'SELECT ar.id, ar.name, SUM(h.ms_played) AS ms '
+        'FROM playback_history h '
+        'JOIN song_artists sa ON sa.song_id = h.song_id '
+        'JOIN artists ar ON ar.id = sa.artist_id '
+        'WHERE h.played_at >= ? '
+        'GROUP BY ar.id HAVING ms > 0 ORDER BY ms DESC LIMIT ?',
+        [since?.millisecondsSinceEpoch ?? 0, limit],
+      )
+      .map((r) => (r['id'] as int, r['name'] as String, r['ms'] as int))
+      .toList();
+
+  List<(int albumId, String title, int ms)> topAlbumsByTime({
+    int limit = 25,
+    DateTime? since,
+  }) => _db
+      .select(
+        'SELECT al.id, al.title, SUM(h.ms_played) AS ms '
+        'FROM playback_history h '
+        'JOIN songs s ON s.id = h.song_id '
+        'JOIN albums al ON al.id = s.album_id '
+        'WHERE h.played_at >= ? '
+        'GROUP BY al.id HAVING ms > 0 ORDER BY ms DESC LIMIT ?',
+        [since?.millisecondsSinceEpoch ?? 0, limit],
+      )
+      .map((r) => (r['id'] as int, r['title'] as String, r['ms'] as int))
+      .toList();
+
+  int totalListenedMsSince(DateTime since) =>
+      (_db
+              .select(
+                'SELECT COALESCE(SUM(ms_played), 0) AS s '
+                'FROM playback_history WHERE played_at >= ?',
+                [since.millisecondsSinceEpoch],
+              )
+              .first['s']
+          as int?) ??
+      0;
+
+  /// When each song was last played, for the smart playlists.
+  Map<String, int> lastPlayedAt() => {
+    for (final r in _db.select(
+      'SELECT song_id, MAX(played_at) AS last FROM playback_history '
+      'GROUP BY song_id',
+    ))
+      r['song_id'] as String: r['last'] as int,
+  };
 
   // -------------------------------------------------------- search history
 

@@ -88,9 +88,22 @@ Writes go to a copy, which is re-read to prove it parses and that the values
 landed, and only then renamed over the original — these are the user's only
 copies of their music.
 
-### Phase 5 — Intelligence
-Stats (`StatsScreen`, `StatsOverviewCard`), Daily Mix, smart playlists (`SmartPlaylistRule`),
-AI playlists (Gemini / OpenAI / Deepseek), QuickFill, Mashup, recently played.
+### Phase 5 — Intelligence  🟡 in progress
+Done: real listening-time recording, `StatsScreen` with per-period charts, the four
+`SmartPlaylistRule` playlists, a seeded Daily Mix, QuickFill, recently played.
+
+Everything is ranked by **time listened** rather than play count — a track started and
+skipped twenty times is not a favourite. That needed a fix underneath: playback was
+recorded with `msPlayed: 0` always, so "listened" could only ever read zero. Listening
+time is now accumulated from forward position movement (seeks and pauses excluded) and
+written when the track ends.
+
+Remaining in this phase:
+- AI playlists (Gemini / OpenAI / Deepseek). The provider abstraction and key storage are
+  not written yet; they cannot be verified here without API keys, so they are deliberately
+  last.
+- Mashup. `MashupScreen` is 339 lines of Compose whose purpose is not evident from the
+  source without reading it properly — deferred rather than guessed at.
 
 ### Phase 6 — Remote sources
 Jellyfin, Navidrome, Google Drive, Telegram, NetEase, QQMusic — dashboards + streaming

@@ -165,13 +165,53 @@ class _TabContent extends ConsumerWidget {
 
       case LibraryTabId.playlists:
         final playlists = sortPlaylists(library.playlists, sort);
-        return _grid(
-          count: playlists.length,
-          extent: 200,
-          aspect: 0.78,
-          builder: (i) => PlaylistCard(playlist: playlists[i]),
-          emptyIcon: Icons.queue_music_rounded,
-          emptyTitle: 'No playlists yet',
+        final smart = ref.watch(populatedSmartPlaylistsProvider);
+        if (playlists.isEmpty && smart.isEmpty) {
+          return const EmptyState(
+            icon: Icons.queue_music_rounded,
+            title: 'No playlists yet',
+          );
+        }
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+          children: [
+            if (smart.isNotEmpty) ...[
+              const SectionHeader(
+                title: 'Made for you',
+                subtitle: 'Built from your listening, and kept up to date',
+              ),
+              SizedBox(
+                height: 210,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: smart.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, i) => SmartPlaylistCard(
+                    rule: smart[i].$1,
+                    songs: smart[i].$2,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (playlists.isNotEmpty) ...[
+              const SectionHeader(title: 'Your playlists'),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate:
+                    const SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: 200,
+                      childAspectRatio: 0.78,
+                      crossAxisSpacing: 8,
+                      mainAxisSpacing: 8,
+                    ),
+                itemCount: playlists.length,
+                itemBuilder: (context, i) =>
+                    PlaylistCard(playlist: playlists[i]),
+              ),
+            ],
+          ],
         );
 
       case LibraryTabId.folders:

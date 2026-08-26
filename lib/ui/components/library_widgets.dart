@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/models.dart';
 import '../../data/models/sort_option.dart';
+import '../../data/smart/smart_playlists.dart';
 import '../../state/providers.dart';
 import '../navigation.dart';
 import '../theme/shapes.dart';
@@ -577,6 +578,88 @@ class FolderTile extends ConsumerWidget {
       ),
       trailing: const Icon(Icons.chevron_right_rounded),
       onTap: () => openFolder(context, folder),
+    );
+  }
+}
+
+/// A computed playlist — one of the [SmartPlaylistRule] kinds.
+///
+/// Visually distinct from a real playlist because it cannot be edited: it is
+/// the rule's current output, and changes as listening does.
+class SmartPlaylistCard extends ConsumerWidget {
+  const SmartPlaylistCard({
+    super.key,
+    required this.rule,
+    required this.songs,
+    this.size = 168,
+  });
+
+  final SmartPlaylistRule rule;
+  final List<Song> songs;
+  final double size;
+
+  static const _icons = {
+    SmartPlaylistRule.topPlayed: Icons.trending_up_rounded,
+    SmartPlaylistRule.recentlyPlayed: Icons.history_rounded,
+    SmartPlaylistRule.forgottenFavorites: Icons.favorite_border_rounded,
+    SmartPlaylistRule.newGems: Icons.auto_awesome_rounded,
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: size,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(shapeLarge),
+        onTap: () => openSmartPlaylist(context, rule),
+        child: Padding(
+          padding: const EdgeInsets.all(6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  AlbumArtCollage(
+                    paths: [for (final song in songs.take(4)) song.albumArtPath],
+                    size: size - 12,
+                    radius: shapeLarge,
+                  ),
+                  Positioned(
+                    left: 8,
+                    top: 8,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(alpha: 0.85),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        _icons[rule] ?? Icons.auto_awesome_rounded,
+                        size: 16,
+                        color: theme.colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                rule.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall,
+              ),
+              Text(
+                plural(songs.length, 'song'),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

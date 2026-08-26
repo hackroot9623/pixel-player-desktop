@@ -44,6 +44,13 @@ class PlayerService extends ChangeNotifier {
   bool _buffering = false;
   String? _lastRecordedSongId;
 
+  /// Open listening event for the current track, and how much of it has
+  /// actually been heard. Accumulated from forward position movement while
+  /// playing, so seeking and pausing do not inflate it.
+  int? _playbackEventId;
+  int _listenedMs = 0;
+  Duration? _lastCountedPosition;
+
   /// Volume actually sent to mpv is `_settings.volume * _fadeFactor`, so track
   /// transitions and the sleep timer can duck the output without clobbering the
   /// user's volume setting.
@@ -95,9 +102,12 @@ class PlayerService extends ChangeNotifier {
     _subs.addAll([
       _player.stream.playing.listen((value) {
         _playing = value;
+        // Pausing must not count the gap until playback resumes.
+        if (!value) _lastCountedPosition = null;
         notifyListeners();
       }),
       _player.stream.position.listen((value) {
+        _accumulateListening(value);
         _position = value;
         positionListenable.value = value;
         _updateTransitionFade();
@@ -372,6 +382,8 @@ class PlayerService extends ChangeNotifier {
   }
 
   Future<void> clear() async {
+    _flushListening();
+    _lastRecordedSongId = null;
     _queue = const [];
     _index = 0;
     await _player.stop();
@@ -398,12 +410,42 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
+  /// Counts forward playback only.
+  ///
+  /// A jump larger than a few seconds is a seek, not listening, and a backwards
+  /// jump is a restart — neither should add to the total.
+  void _accumulateListening(Duration position) {
+    if (!_playing) {
+      _lastCountedPosition = position;
+      return;
+    }
+    final previous = _lastCountedPosition;
+    _lastCountedPosition = position;
+    if (previous == null) return;
+    final delta = position - previous;
+    if (delta.isNegative || delta > const Duration(seconds: 4)) return;
+    _listenedMs += delta.inMilliseconds;
+  }
+
+  /// Closes the open listening event, if any.
+  void _flushListening() {
+    final eventId = _playbackEventId;
+    if (eventId != null && _listenedMs > 0) {
+      _db.finishPlayback(eventId, _listenedMs);
+    }
+    _playbackEventId = null;
+    _listenedMs = 0;
+    _lastCountedPosition = null;
+  }
+
   void _onTrackChanged() {
     final song = current;
     if (song == null) return;
     if (_lastRecordedSongId != song.id) {
+      // Close the previous track's event before opening the next.
+      _flushListening();
       _lastRecordedSongId = song.id;
-      _db.recordPlayback(song.id, msPlayed: 0);
+      _playbackEventId = _db.startPlayback(song.id);
     }
     _settings.saveQueueSnapshot(
       [for (final s in _queue) s.id],
@@ -414,6 +456,8 @@ class PlayerService extends ChangeNotifier {
 
   @override
   void dispose() {
+    // Otherwise the last track of the session is never counted.
+    _flushListening();
     _settings.saveQueueSnapshot(
       [for (final s in _queue) s.id],
       _index,

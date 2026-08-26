@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../data/models/models.dart';
+import '../data/smart/smart_playlists.dart';
 import 'screens/album_detail_screen.dart';
 import 'screens/artist_detail_screen.dart';
 import 'screens/folder_screen.dart';
 import 'screens/genre_detail_screen.dart';
 import 'screens/playlist_detail_screen.dart';
+import 'screens/smart_playlist_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/settings_screens.dart';
 import 'screens/stats_screen.dart';
@@ -51,3 +53,6 @@ void openPlayerLook(BuildContext context) =>
 
 void openWindowSettings(BuildContext context) =>
     _push(context, const WindowScreen());
+
+void openSmartPlaylist(BuildContext context, SmartPlaylistRule rule) =>
+    _push(context, SmartPlaylistScreen(rule: rule));

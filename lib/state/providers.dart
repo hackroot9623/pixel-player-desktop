@@ -15,6 +15,7 @@ import '../data/models/models.dart';
 import '../data/models/sort_option.dart';
 import '../data/prefs/settings.dart';
 import '../data/scanner/library_scanner.dart';
+import '../data/smart/smart_playlists.dart';
 import '../data/tags/tag_writer.dart';
 import '../player/player_service.dart';
 
@@ -302,20 +303,160 @@ final recentlyPlayedProvider = Provider<List<Song>>((ref) {
   return db.songsByIds(db.recentlyPlayedIds());
 });
 
-/// "Your Mix" / Daily Mix preview — weighted by play count, with unheard
-/// tracks mixed in so the row is never empty on a fresh library.
+/// The listening facts the smart playlists and the mix are built from.
+final listeningStatsProvider = Provider<ListeningStats>((ref) {
+  ref.watch(libraryProvider);
+  final db = ref.watch(databaseProvider);
+  return ListeningStats(
+    msListened: {
+      for (final (songId, ms, _) in db.topSongsByTime(limit: 100000))
+        songId: ms,
+    },
+    playCounts: db.playCounts(),
+    lastPlayedAt: db.lastPlayedAt(),
+  );
+});
+
+/// "Your Mix" — weighted towards what you actually listen to, with unheard
+/// tracks mixed in, and seeded by the date so it is stable for the day.
 final dailyMixProvider = Provider<List<Song>>((ref) {
   final library = ref.watch(libraryProvider);
   if (library.songs.isEmpty) return const [];
-  final counts = ref.watch(databaseProvider).playCounts();
-  final ranked = [...library.songs]
-    ..sort((a, b) => (counts[b.id] ?? 0).compareTo(counts[a.id] ?? 0));
-  final played = ranked.where((s) => (counts[s.id] ?? 0) > 0).take(12).toList();
-  final rest = [...library.songs]..shuffle();
-  return [
-    ...played,
-    ...rest.where((s) => !played.contains(s)).take(20 - played.length),
-  ];
+  return buildDailyMix(library.songs, ref.watch(listeningStatsProvider));
+});
+
+/// One computed playlist per smart rule.
+final smartPlaylistProvider =
+    Provider.family<List<Song>, SmartPlaylistRule>((ref, rule) {
+      final library = ref.watch(libraryProvider);
+      if (library.songs.isEmpty) return const [];
+      return evaluateSmartPlaylist(
+        rule,
+        library.songs,
+        ref.watch(listeningStatsProvider),
+      );
+    });
+
+/// Only the rules that currently have something in them, so the library does
+/// not show four empty rows on a fresh install.
+final populatedSmartPlaylistsProvider =
+    Provider<List<(SmartPlaylistRule, List<Song>)>>((ref) {
+      final result = <(SmartPlaylistRule, List<Song>)>[];
+      for (final rule in SmartPlaylistRule.values) {
+        final songs = ref.watch(smartPlaylistProvider(rule));
+        if (songs.isNotEmpty) result.add((rule, songs));
+      }
+      return result;
+    });
+
+/// Suggested tracks to top up a playlist with.
+final quickFillProvider = Provider.family<List<Song>, String>((
+  ref,
+  playlistId,
+) {
+  final library = ref.watch(libraryProvider);
+  final playlist = library.playlists
+      .where((pl) => pl.id == playlistId)
+      .firstOrNull;
+  if (playlist == null) return const [];
+  final seed = ref.watch(databaseProvider).songsByIds(playlist.songIds);
+  if (seed.isEmpty) return const [];
+  return quickFill(seed, library.songs, ref.watch(listeningStatsProvider));
+});
+
+/// Everything the statistics screen shows, for one period.
+class StatsSummary {
+  const StatsSummary({
+    required this.songCount,
+    required this.albumCount,
+    required this.artistCount,
+    required this.libraryDuration,
+    required this.listened,
+    required this.plays,
+    required this.streakDays,
+    required this.byHour,
+    required this.byDay,
+    required this.topSongs,
+    required this.topArtists,
+    required this.topAlbums,
+  });
+
+  final int songCount;
+  final int albumCount;
+  final int artistCount;
+  final Duration libraryDuration;
+  final Duration listened;
+  final int plays;
+  final int streakDays;
+
+  /// Hour of day (0-23) -> milliseconds listened.
+  final Map<int, int> byHour;
+  final List<(DateTime day, int ms)> byDay;
+  final List<(Song song, Duration listened, int plays)> topSongs;
+  final List<(String name, Duration listened)> topArtists;
+  final List<(String title, Duration listened)> topAlbums;
+
+  bool get hasHistory => listened > Duration.zero;
+}
+
+/// The window the statistics screen is showing.
+enum StatsPeriod {
+  week('Last 7 days', 7),
+  month('Last 30 days', 30),
+  year('Last year', 365),
+  all('All time', null);
+
+  const StatsPeriod(this.label, this.days);
+
+  final String label;
+  final int? days;
+
+  DateTime? get since => days == null
+      ? null
+      : DateTime.now().subtract(Duration(days: days!));
+}
+
+final statsPeriodProvider = StateProvider<StatsPeriod>(
+  (ref) => StatsPeriod.month,
+);
+
+final statsSummaryProvider = Provider<StatsSummary>((ref) {
+  final library = ref.watch(libraryProvider);
+  final db = ref.watch(databaseProvider);
+  final period = ref.watch(statsPeriodProvider);
+  final since = period.since;
+
+  final songsById = {for (final song in library.songs) song.id: song};
+  return StatsSummary(
+    songCount: library.songs.length,
+    albumCount: library.albums.length,
+    artistCount: library.artists.length,
+    libraryDuration: Duration(
+      milliseconds: library.songs.fold(0, (sum, s) => sum + s.duration),
+    ),
+    listened: Duration(
+      milliseconds: since == null
+          ? db.totalListenedMs()
+          : db.totalListenedMsSince(since),
+    ),
+    plays: db.totalPlays(),
+    streakDays: db.listeningStreakDays(),
+    byHour: db.listeningByHour(since: since),
+    byDay: db.listeningByDay(days: period.days ?? 30),
+    topSongs: [
+      for (final (songId, ms, plays) in db.topSongsByTime(since: since))
+        if (songsById[songId] != null)
+          (songsById[songId]!, Duration(milliseconds: ms), plays),
+    ],
+    topArtists: [
+      for (final (_, name, ms) in db.topArtistsByTime(since: since))
+        (name, Duration(milliseconds: ms)),
+    ],
+    topAlbums: [
+      for (final (_, title, ms) in db.topAlbumsByTime(since: since))
+        (title, Duration(milliseconds: ms)),
+    ],
+  );
 });
 
 class SearchResults {
