@@ -166,11 +166,31 @@ void _scanIsolate((SendPort, ScanRequest) args) {
   }
 }
 
+/// Reads one file, for refreshing a single song after its tags were edited.
+Song? readSongFile(
+  File file, {
+  required String artworkDir,
+  List<String> artistDelimiters = defaultArtistDelimiters,
+  bool multiArtistEnabled = true,
+}) => _readSong(
+  file,
+  ScanRequest(
+    roots: const [],
+    artworkDir: artworkDir,
+    artistDelimiters: artistDelimiters,
+    multiArtistEnabled: multiArtistEnabled,
+  ),
+  // A fresh cache: the artwork may well be what changed.
+  {},
+  overwriteArtwork: true,
+);
+
 Song? _readSong(
   File file,
   ScanRequest request,
-  Map<int, String?> artworkCache,
-) {
+  Map<int, String?> artworkCache, {
+  bool overwriteArtwork = false,
+}) {
   AudioMetadata? meta;
   try {
     meta = readMetadata(file, getImage: true);
@@ -213,7 +233,13 @@ Song? _readSong(
 
   final artPath = artworkCache.putIfAbsent(
     albumId,
-    () => _resolveArtwork(file, meta, albumId, request.artworkDir),
+    () => _resolveArtwork(
+      file,
+      meta,
+      albumId,
+      request.artworkDir,
+      overwrite: overwriteArtwork,
+    ),
   );
 
   return Song(
@@ -247,8 +273,9 @@ String? _resolveArtwork(
   File file,
   AudioMetadata? meta,
   int albumId,
-  String artworkDir,
-) {
+  String artworkDir, {
+  bool overwrite = false,
+}) {
   final pictures = meta?.pictures ?? const <Picture>[];
   if (pictures.isNotEmpty) {
     final picture = pictures.firstWhere(
@@ -257,7 +284,7 @@ String? _resolveArtwork(
     );
     final ext = picture.mimetype.contains('png') ? 'png' : 'jpg';
     final out = File(p.join(artworkDir, '$albumId.$ext'));
-    if (!out.existsSync()) out.writeAsBytesSync(picture.bytes);
+    if (overwrite || !out.existsSync()) out.writeAsBytesSync(picture.bytes);
     return out.path;
   }
   final dir = Directory(p.dirname(file.path));

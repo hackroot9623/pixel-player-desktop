@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../data/artists/artist_image_repository.dart';
 import '../data/db/database.dart';
 import '../data/lyrics/lrclib_client.dart';
 import '../data/lyrics/lyrics_repository.dart';
@@ -14,6 +15,7 @@ import '../data/models/models.dart';
 import '../data/models/sort_option.dart';
 import '../data/prefs/settings.dart';
 import '../data/scanner/library_scanner.dart';
+import '../data/tags/tag_writer.dart';
 import '../player/player_service.dart';
 
 /// Riverpod replaces Hilt (`di/`) plus the 49 `presentation/viewmodel` classes.
@@ -484,3 +486,62 @@ final lyricsSearchProvider = FutureProvider.family<List<LrcLibResult>, String>((
   if (query.trim().isEmpty) return const [];
   return ref.watch(lyricsRepositoryProvider).search(query: query);
 });
+
+// -------------------------------------------------------------------- tags
+
+final artistImageRepositoryProvider = Provider<ArtistImageRepository>((ref) {
+  final repository = ArtistImageRepository(
+    ref.watch(databaseProvider),
+    ref.watch(artworkDirProvider),
+  );
+  ref.onDispose(repository.dispose);
+  return repository;
+});
+
+/// Writes tags to disk and refreshes just that song's row.
+///
+/// A full rescan would be wasteful and would lose the user's place; re-reading
+/// the one file keeps the library honest about what is actually in it.
+class TagEditor {
+  TagEditor(this._db, this._settings, this._artworkDir);
+
+  final MusicDatabase _db;
+  final Settings _settings;
+  final String _artworkDir;
+
+  /// Applies [edit] to every song given, returning the failures by song id.
+  ///
+  /// Carries on after a failure: with a multi-song edit, one unwritable file
+  /// should not abandon the rest.
+  Map<String, String> apply(List<Song> songs, TagEdit edit) {
+    final failures = <String, String>{};
+    for (final song in songs) {
+      final file = File(song.path);
+      if (!file.existsSync()) {
+        failures[song.id] = 'File is missing';
+        continue;
+      }
+      try {
+        writeTags(file, edit);
+        final refreshed = readSongFile(
+          file,
+          artworkDir: _artworkDir,
+          artistDelimiters: _settings.artistDelimiters,
+          multiArtistEnabled: _settings.multiArtistEnabled,
+        );
+        if (refreshed != null) _db.upsertSong(refreshed);
+      } on TagWriteException catch (error) {
+        failures[song.id] = error.message;
+      }
+    }
+    return failures;
+  }
+}
+
+final tagEditorProvider = Provider<TagEditor>(
+  (ref) => TagEditor(
+    ref.watch(databaseProvider),
+    ref.read(settingsProvider),
+    ref.watch(artworkDirProvider),
+  ),
+);

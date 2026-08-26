@@ -6,6 +6,7 @@ import '../../state/providers.dart';
 import '../theme/shapes.dart';
 import 'album_art.dart';
 import 'common.dart';
+import 'edit_song_sheet.dart';
 import 'library_widgets.dart';
 
 /// Selection state for the library lists. Port of the state the Android
@@ -132,6 +133,13 @@ class SelectionActionBar extends ConsumerWidget {
                         : () => showAddToPlaylistSheet(context, [
                             for (final s in selected) s.id,
                           ]),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit tags',
+                    icon: const Icon(Icons.edit_rounded),
+                    onPressed: selected.isEmpty
+                        ? null
+                        : () => showEditMultipleSongsSheet(context, selected),
                   ),
                   IconButton(
                     tooltip: 'Like',

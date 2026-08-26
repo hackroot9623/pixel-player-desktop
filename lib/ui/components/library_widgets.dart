@@ -8,6 +8,7 @@ import '../navigation.dart';
 import '../theme/shapes.dart';
 import 'album_art.dart';
 import 'common.dart';
+import 'edit_song_sheet.dart';
 import 'multi_select.dart';
 import 'song_info_sheet.dart';
 
@@ -184,6 +185,11 @@ class SongMenuButton extends ConsumerWidget {
         leadingIcon: const Icon(Icons.person_rounded),
         onPressed: () => openArtist(context, song.primaryArtist.id),
         child: const Text('Go to artist'),
+      ),
+      MenuItemButton(
+        leadingIcon: const Icon(Icons.edit_rounded),
+        onPressed: () => showEditSongSheet(context, song),
+        child: const Text('Edit tags…'),
       ),
       MenuItemButton(
         leadingIcon: const Icon(Icons.info_outline_rounded),

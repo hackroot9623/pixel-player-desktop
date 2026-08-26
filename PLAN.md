@@ -69,9 +69,24 @@ Not ported: TTML parsing (`TtmlLyricsParser`), romanization/translation tracks
 (`MultiLangRomanizer`) and the per-word bubble animation (`BubblesLine`) — the
 model carries the fields, so they slot in without a schema change.
 
-### Phase 4 — Tag editor
-Write-side metadata (`audiotags`/TagLib FFI), `EditSongSheet`, `EditMultipleSongsSheet`,
-artwork embedding, artist artwork via Deezer + LRU/db cache, custom artist images.
+### Phase 4 — Tag editor  ✅
+Tag writing, `EditSongSheet`, `EditMultipleSongsSheet`, artwork embedding, artist
+artwork via Deezer with a file cache, custom artist images.
+
+No TagLib FFI needed: `audio_metadata_reader` ships writers for ID3v2/v1, MP4,
+FLAC, RIFF and APEv2. Two consequences to know about:
+- Ogg and Opus can be read but not written; the editor says so instead of
+  failing at save time.
+- Those writers only rewrite a tag block that already exists — the RIFF writer
+  replaces a LIST/INFO chunk but will not create one, and the ID3 writer needs
+  an existing ID3v2 tag. Writes are therefore verified by re-reading, and a
+  silent no-op is reported as an error.
+- Album artist has no setter in the package, so it stays derived from the
+  artist tag. That also keeps the compilation-splitting caveat from phase 1.
+
+Writes go to a copy, which is re-read to prove it parses and that the values
+landed, and only then renamed over the original — these are the user's only
+copies of their music.
 
 ### Phase 5 — Intelligence
 Stats (`StatsScreen`, `StatsOverviewCard`), Daily Mix, smart playlists (`SmartPlaylistRule`),

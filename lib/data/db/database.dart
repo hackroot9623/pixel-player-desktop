@@ -253,6 +253,115 @@ class MusicDatabase {
     }
   }
 
+  /// Replaces one song's row, for a file whose tags were just edited.
+  ///
+  /// Keeps its artists in step, and leaves favourites, playlists and history
+  /// alone — they key off the song id, which is the file path.
+  void upsertSong(Song song) {
+    _db.execute('BEGIN');
+    try {
+      _db.execute('DELETE FROM song_artists WHERE song_id = ?', [song.id]);
+      _db.execute(
+        '''
+        INSERT INTO songs (id, title, artist, artist_id, album, album_id,
+          album_artist, path, album_art_path, duration, genre, lyrics,
+          track_number, disc_number, year, date_added, date_modified,
+          mime_type, bitrate, sample_rate)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+          title = excluded.title, artist = excluded.artist,
+          artist_id = excluded.artist_id, album = excluded.album,
+          album_id = excluded.album_id, album_artist = excluded.album_artist,
+          album_art_path = excluded.album_art_path,
+          duration = excluded.duration, genre = excluded.genre,
+          lyrics = excluded.lyrics, track_number = excluded.track_number,
+          disc_number = excluded.disc_number, year = excluded.year,
+          date_modified = excluded.date_modified,
+          mime_type = excluded.mime_type, bitrate = excluded.bitrate,
+          sample_rate = excluded.sample_rate
+        ''',
+        [
+          song.id,
+          song.title,
+          song.artist,
+          song.artistId,
+          song.album,
+          song.albumId,
+          song.albumArtist,
+          song.path,
+          song.albumArtPath,
+          song.duration,
+          song.genre,
+          song.lyrics,
+          song.trackNumber,
+          song.discNumber,
+          song.year,
+          song.dateAdded,
+          song.dateModified,
+          song.mimeType,
+          song.bitrate,
+          song.sampleRate,
+        ],
+      );
+      _db.execute(
+        '''
+        INSERT INTO albums (id, title, artist, album_artist, year, date_added,
+          album_art_path)
+        VALUES (?,?,?,?,?,?,?)
+        ON CONFLICT(id) DO UPDATE SET
+          album_art_path = excluded.album_art_path,
+          year = MAX(albums.year, excluded.year)
+        ''',
+        [
+          song.albumId,
+          song.album,
+          song.albumArtist ?? song.artist,
+          song.albumArtist,
+          song.year,
+          song.dateAdded,
+          song.albumArtPath,
+        ],
+      );
+      for (final artist in song.artists.isEmpty
+          ? [ArtistRef(id: song.artistId, name: song.artist, isPrimary: true)]
+          : song.artists) {
+        _db.execute(
+          'INSERT OR IGNORE INTO artists (id, name) VALUES (?, ?)',
+          [artist.id, artist.name],
+        );
+        _db.execute(
+          'INSERT OR IGNORE INTO song_artists (song_id, artist_id, is_primary) '
+          'VALUES (?,?,?)',
+          [song.id, artist.id, artist.isPrimary ? 1 : 0],
+        );
+      }
+      _db.execute('COMMIT');
+    } catch (_) {
+      _db.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  // --------------------------------------------------------- artist images
+
+  /// Cached remote image (Deezer), as a local file path once downloaded.
+  void setArtistImage(int artistId, String? url) => _db.execute(
+    'UPDATE artists SET image_url = ? WHERE id = ?',
+    [url, artistId],
+  );
+
+  /// A picture the user chose, which wins over the remote one.
+  void setArtistCustomImage(int artistId, String? path) => _db.execute(
+    'UPDATE artists SET custom_image_uri = ? WHERE id = ?',
+    [path, artistId],
+  );
+
+  /// Artists with no image yet, for the batch fetch.
+  List<Artist> artistsMissingImages() =>
+      allArtists()
+          .where((artist) => artist.effectiveImageUrl == null)
+          .toList();
+
   // ----------------------------------------------------------------- reads
 
   static const _songSelect = '''

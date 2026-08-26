@@ -7,6 +7,7 @@ import '../navigation.dart';
 import '../theme/shapes.dart';
 import 'album_art.dart';
 import 'common.dart';
+import 'edit_song_sheet.dart';
 import 'library_widgets.dart';
 
 /// Port of `presentation/components/SongInfoBottomSheet`: artwork and title on
@@ -126,6 +127,11 @@ class SongInfoSheet extends ConsumerWidget {
                 icon: Icons.library_add_rounded,
                 label: 'Playlist',
                 onTap: () => showAddToPlaylistSheet(context, [current.id]),
+              ),
+              _Action(
+                icon: Icons.edit_rounded,
+                label: 'Edit tags',
+                onTap: () => showEditSongSheet(context, current),
               ),
               _Action(
                 icon: Icons.album_rounded,

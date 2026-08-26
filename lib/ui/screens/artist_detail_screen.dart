@@ -1,3 +1,6 @@
+import 'dart:io';
+
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -26,6 +29,11 @@ class ArtistDetailScreen extends ConsumerWidget {
         body: EmptyState(icon: Icons.person_rounded, title: 'Artist not found'),
       );
     }
+    final images = ref.read(artistImageRepositoryProvider);
+    Future<void> refresh() async {
+      ref.read(libraryProvider.notifier).reload();
+    }
+
     return DetailScaffold(
       title: artist.name,
       subtitle: plural(albums.length, 'album'),
@@ -34,6 +42,52 @@ class ArtistDetailScreen extends ConsumerWidget {
       circularArt: true,
       songs: songs,
       numbered: false,
+      actions: [
+        MenuAnchor(
+          builder: (context, controller, _) => IconButton(
+            tooltip: 'Artist image',
+            icon: const Icon(Icons.image_rounded),
+            onPressed: () =>
+                controller.isOpen ? controller.close() : controller.open(),
+          ),
+          menuChildren: [
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.cloud_download_rounded),
+              onPressed: () async {
+                await images.fetch(artist);
+                await refresh();
+              },
+              child: const Text('Fetch from Deezer'),
+            ),
+            MenuItemButton(
+              leadingIcon: const Icon(Icons.folder_open_rounded),
+              onPressed: () async {
+                final picked = await openFile(
+                  acceptedTypeGroups: const [
+                    XTypeGroup(
+                      label: 'Images',
+                      extensions: ['jpg', 'jpeg', 'png', 'webp'],
+                    ),
+                  ],
+                );
+                if (picked == null) return;
+                await images.setCustomImage(artist, File(picked.path));
+                await refresh();
+              },
+              child: const Text('Choose a picture…'),
+            ),
+            if (artist.effectiveImageUrl != null)
+              MenuItemButton(
+                leadingIcon: const Icon(Icons.delete_outline_rounded),
+                onPressed: () async {
+                  images.clear(artist);
+                  await refresh();
+                },
+                child: const Text('Remove image'),
+              ),
+          ],
+        ),
+      ],
       extraSlivers: [
         if (albums.isNotEmpty)
           SliverToBoxAdapter(
