@@ -7,6 +7,7 @@ import '../../state/providers.dart';
 import '../components/album_art.dart';
 import '../components/playback_controls.dart';
 import '../components/window_controls.dart';
+import '../components/window_size_presets.dart';
 import '../theme/shapes.dart';
 
 /// Port of `presentation/screens/PaletteStyleSettingsScreen`. Each Material
@@ -614,6 +615,18 @@ class WindowScreen extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 24),
+          Text('Size presets', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 4),
+          Text(
+            'The layout follows the window, so these are shortcuts to the '
+            'shapes it is designed for.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Card(child: const WindowSizePresetButtons(labelled: true)),
           const SizedBox(height: 16),
           Card(
             color: theme.colorScheme.surfaceContainerHighest,

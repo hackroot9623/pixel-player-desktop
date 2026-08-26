@@ -8,6 +8,7 @@ import 'album_art.dart';
 import 'common.dart';
 import 'playback_controls.dart';
 import 'queue_panel.dart';
+import 'window_size_presets.dart';
 
 const miniPlayerHeight = 84.0;
 
@@ -111,6 +112,12 @@ class MiniPlayer extends ConsumerWidget {
                       tooltip: 'Queue',
                       icon: const Icon(Icons.queue_music_rounded),
                       onPressed: () => showQueuePanel(context),
+                    ),
+                    IconButton(
+                      tooltip: 'Shrink to the player',
+                      icon: const Icon(Icons.compress_rounded),
+                      onPressed: () =>
+                          applyWindowSizePreset(WindowSizePreset.player),
                     ),
                     IconButton(
                       tooltip: 'Expand',

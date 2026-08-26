@@ -25,6 +25,7 @@ import 'package:pixelplay_desktop/ui/components/wavy_slider.dart';
 import 'package:pixelplay_desktop/ui/screens/full_player_screen.dart';
 import 'package:pixelplay_desktop/ui/screens/settings_screens.dart';
 import 'package:pixelplay_desktop/ui/shell/app_shell.dart';
+import 'package:pixelplay_desktop/ui/components/window_size_presets.dart';
 import 'package:pixelplay_desktop/ui/shell/compact_player.dart';
 import 'package:pixelplay_desktop/ui/theme/app_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -673,6 +674,47 @@ void main() {
       // width, not just area.
       expect(isCompactSize(const Size(400, 1200)), isTrue);
       expect(isCompactSize(const Size(1200, 300)), isTrue);
+    });
+
+    test('the arrangement follows the available height', () {
+      // Tall enough for the artwork to get its own column.
+      expect(compactLayoutFor(const Size(520, 680)), CompactLayout.portrait);
+      expect(compactLayoutFor(const Size(560, 730)), CompactLayout.portrait);
+      expect(compactLayoutFor(const Size(400, 380)), CompactLayout.portrait);
+      // Too short: one horizontal strip is all that fits.
+      expect(compactLayoutFor(const Size(420, 200)), CompactLayout.strip);
+      expect(compactLayoutFor(const Size(1200, 300)), CompactLayout.strip);
+      expect(compactLayoutFor(const Size(400, 379)), CompactLayout.strip);
+    });
+
+    test('a window matching a preset is recognised', () {
+      for (final preset in WindowSizePreset.values) {
+        expect(matchingPreset(preset.size), preset, reason: preset.label);
+      }
+      // And a shape that is nothing like one is not claimed.
+      expect(matchingPreset(const Size(800, 300)), isNull);
+    });
+
+    testWidgets('size preset buttons report the chosen size', (tester) async {
+      final applied = <WindowSizePreset>[];
+      await tester.pumpWidget(
+        host(
+          Scaffold(
+            body: Center(
+              child: WindowSizePresetButtons(
+                onApply: (preset) async => applied.add(preset),
+              ),
+            ),
+          ),
+        ),
+      );
+      await _settle(tester, frames: 2);
+
+      for (final preset in WindowSizePreset.values) {
+        await tester.tap(find.byIcon(preset.icon));
+        await _settle(tester, frames: 2);
+      }
+      expect(applied, WindowSizePreset.values);
     });
 
     testWidgets('the shell swaps to the player and back on resize', (
