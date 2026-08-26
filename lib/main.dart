@@ -90,6 +90,10 @@ class _PixelPlayAppState extends ConsumerState<PixelPlayApp> {
       // colours snapping to the new track rather than drifting into it.
       themeAnimationDuration: const Duration(milliseconds: 240),
       themeAnimationCurve: Curves.easeOutCubic,
+      // Above the root navigator, so the title bar and resize handles are on
+      // every screen — including routes pushed over the shell.
+      builder: (context, child) =>
+          WindowChrome(child: child ?? const SizedBox.shrink()),
       theme: buildTheme(
         brightness: Brightness.light,
         schemeOverride: scheme?.$1,

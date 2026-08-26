@@ -241,6 +241,10 @@ class WindowResizeArea extends ConsumerWidget {
     if (!custom) return child;
 
     return Stack(
+      // Tight constraints for the wrapped app: with the default loose fit the
+      // content sized to itself, and a Row with an Expanded inside it ended up
+      // laid out against unbounded width.
+      fit: StackFit.expand,
       children: [
         child,
         // Edges.
@@ -337,4 +341,51 @@ class WindowResizeArea extends ConsumerWidget {
       ),
     ),
   );
+}
+
+/// Wraps the entire app — above the root navigator — so the title bar and the
+/// resize handles are present on every screen.
+///
+/// Installed through `MaterialApp.builder` rather than inside the shell: routes
+/// pushed on the root navigator (the full player) and dialogs would otherwise
+/// cover the strip, leaving no way to move or close the window without
+/// navigating back first.
+class WindowChrome extends ConsumerWidget {
+  const WindowChrome({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final custom = ref.watch(
+      settingsProvider.select((settings) => settings.useCustomTitleBar),
+    );
+    // With system decorations there is nothing to add, and no reason to put
+    // another layer between the app and the view.
+    if (!custom) return child;
+
+    return WindowResizeArea(
+      child: Column(
+        children: [
+          // Above the root navigator there is no Material and no Overlay, which
+          // the strip's InkWells and Tooltips both require — the controls
+          // rendered as error widgets without them. The Overlay wraps only the
+          // strip, never `child`: an OverlayEntry captures its builder, so
+          // putting the app inside one would freeze it on the first route.
+          Material(
+            color: Theme.of(context).colorScheme.surface,
+            child: SizedBox(
+              height: windowTitleBarHeight,
+              child: Overlay(
+                initialEntries: [
+                  OverlayEntry(builder: (context) => const WindowTitleBar()),
+                ],
+              ),
+            ),
+          ),
+          Expanded(child: child),
+        ],
+      ),
+    );
+  }
 }

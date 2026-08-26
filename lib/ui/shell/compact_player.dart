@@ -7,7 +7,6 @@ import '../../state/providers.dart';
 import '../components/album_art.dart';
 import '../components/common.dart';
 import '../components/playback_controls.dart';
-import '../components/window_controls.dart';
 import '../components/window_size_presets.dart';
 import '../screens/full_player_screen.dart';
 import '../theme/shapes.dart';
@@ -333,18 +332,10 @@ class _SeekBar extends StatelessWidget {
   );
 }
 
-/// The compact shell: the client-side title bar (when enabled) above the
-/// compact player, and nothing else.
+/// The compact shell. The title bar comes from WindowChrome, app-wide.
 class CompactShell extends StatelessWidget {
   const CompactShell({super.key});
 
   @override
-  Widget build(BuildContext context) => const Column(
-    children: [
-      // Still needed here: with system decorations off, this is the only way to
-      // close or move the window.
-      WindowTitleBar(),
-      Expanded(child: CompactPlayer()),
-    ],
-  );
+  Widget build(BuildContext context) => const CompactPlayer();
 }

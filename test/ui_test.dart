@@ -122,6 +122,9 @@ void main() {
     ],
     child: MaterialApp(
       theme: buildTheme(brightness: Brightness.dark),
+      // Mirrors main(): the window chrome sits above the root navigator.
+      builder: (context, navigator) =>
+          WindowChrome(child: navigator ?? const SizedBox.shrink()),
       home: Consumer(
         builder: (context, ref, _) {
           container = ProviderScope.containerOf(context);
@@ -472,13 +475,15 @@ void main() {
   testWidgets('the title bar appears only with the custom decoration mode', (
     tester,
   ) async {
-    await tester.pumpWidget(host(const Scaffold(body: WindowTitleBar())));
+    await tester.pumpWidget(host(const Scaffold(body: SizedBox.shrink())));
     await _settle(tester, frames: 2);
 
-    // Default keeps the system title bar, so the strip must take no space.
+    // Default keeps the system title bar, so the chrome adds nothing at all —
+    // not even a zero-height strip between the app and the view.
     expect(settings.useCustomTitleBar, isFalse);
     expect(find.byType(WindowControls), findsNothing);
-    expect(tester.getSize(find.byType(WindowTitleBar)).height, 0);
+    expect(find.byType(WindowTitleBar), findsNothing);
+    expect(find.byType(WindowResizeArea), findsNothing);
 
     settings.useCustomTitleBar = true;
     await _settle(tester, frames: 2);
@@ -498,7 +503,7 @@ void main() {
   ) async {
     resize(tester, const Size(800, 200));
     settings.useCustomTitleBar = true;
-    await tester.pumpWidget(host(const Scaffold(body: WindowTitleBar())));
+    await tester.pumpWidget(host(const Scaffold(body: SizedBox.shrink())));
     await _settle(tester, frames: 2);
 
     double controlsCentre() =>
@@ -861,6 +866,39 @@ void main() {
         reason: 'the way out of compact mode has to be discoverable',
       );
     });
+  });
+
+  testWidgets('the title bar survives a route pushed over the shell', (
+    tester,
+  ) async {
+    resize(tester, const Size(1200, 800));
+    settings.useCustomTitleBar = true;
+    await tester.pumpWidget(host(const AppShell()));
+    await _settle(tester, frames: 4);
+    expect(find.byType(WindowControls), findsOneWidget);
+
+    // The full player pushes on the *root* navigator, which used to paint over
+    // the strip and leave no way to move or close the window from that screen.
+    final rootContext = tester.element(find.byType(AppShell));
+    Navigator.of(rootContext, rootNavigator: true).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const Scaffold(body: Center(child: Text('pushed'))),
+      ),
+    );
+    await _settle(tester, frames: 6);
+
+    expect(find.text('pushed'), findsOneWidget);
+    expect(
+      find.byType(WindowControls),
+      findsOneWidget,
+      reason: 'the window buttons must stay reachable on every screen',
+    );
+    expect(
+      tester.getSize(find.byType(WindowTitleBar)).height,
+      windowTitleBarHeight,
+    );
+    // And the resize handles too.
+    expect(find.byType(WindowResizeArea), findsOneWidget);
   });
 
   test('carousel weights are identity-stable', () {
