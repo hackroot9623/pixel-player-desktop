@@ -9,8 +9,10 @@ import '../models/models.dart';
 /// Ported from `data/image/` + the Deezer half of `ArtistSettingsScreen`.
 ///
 /// Android keeps an LRU memory cache plus a database cache; here the downloaded
-/// file *is* the cache — the path is stored on the artist row, so a restart
-/// costs nothing and offline still shows the picture.
+/// file *is* the cache, and its path plus the lookup outcome live in
+/// `artist_images` — a table deliberately outside `artists`, which a rescan
+/// clears. So a restart costs nothing, offline still shows the picture, and a
+/// miss is not retried on every visit.
 class ArtistImageRepository {
   ArtistImageRepository(this._db, this._artworkDir, {HttpClient? httpClient})
     : _client = httpClient ?? (HttpClient()..connectionTimeout = _timeout);
@@ -27,28 +29,77 @@ class ArtistImageRepository {
 
   Directory get _dir => Directory(p.join(_artworkDir, 'artists'));
 
-  /// Downloads and caches an image for [artist], returning its local path.
+  /// Resolves an image for [artist], consulting the cache first.
   ///
-  /// Returns null when Deezer has no match or the network is unavailable —
-  /// neither is an error for a local music player.
-  Future<String?> fetch(Artist artist) async {
-    final existing = artist.effectiveImageUrl;
-    if (existing != null && File(existing).existsSync()) return existing;
+  /// Every outcome is written to the cache, including "no such artist" and
+  /// failures, so opening the artist again does not repeat the request. Only a
+  /// [force]d call (the retry on the avatar) goes back to the network after a
+  /// recorded result.
+  Future<Artist> fetch(Artist artist, {bool force = false}) async {
+    final cached = artist.effectiveImageUrl;
+    if (!force && cached != null && File(cached).existsSync()) return artist;
 
-    final url = await _lookup(artist.name);
-    if (url == null) return null;
+    // A recorded miss or failure is respected until the user asks again.
+    if (!force && artist.imageLookedUp) return artist;
 
-    final bytes = await _download(url);
-    if (bytes == null || bytes.isEmpty) return null;
+    final ({int? id, String? name, String url}) match;
+    try {
+      final found = await _lookup(artist.name);
+      if (found == null) {
+        _db.saveArtistImage(artist.id, status: ArtistImageStatus.notFound);
+        return _reload(artist);
+      }
+      match = found;
+    } on Exception catch (error) {
+      _db.saveArtistImage(
+        artist.id,
+        status: ArtistImageStatus.failed,
+        error: _readable(error),
+      );
+      return _reload(artist);
+    }
 
-    await _dir.create(recursive: true);
-    final file = File(p.join(_dir.path, '${artist.id}.jpg'));
-    await file.writeAsBytes(bytes);
-    _db.setArtistImage(artist.id, file.path);
-    return file.path;
+    try {
+      final bytes = await _download(match.url);
+      if (bytes == null || bytes.isEmpty) {
+        _db.saveArtistImage(
+          artist.id,
+          status: ArtistImageStatus.failed,
+          error: 'The image could not be downloaded',
+        );
+        return _reload(artist);
+      }
+      await _dir.create(recursive: true);
+      final file = File(p.join(_dir.path, '${artist.id}.jpg'));
+      await file.writeAsBytes(bytes);
+      _db.saveArtistImage(
+        artist.id,
+        imagePath: file.path,
+        remoteId: match.id,
+        remoteName: match.name,
+        status: ArtistImageStatus.ok,
+      );
+      return _reload(artist);
+    } on Exception catch (error) {
+      _db.saveArtistImage(
+        artist.id,
+        status: ArtistImageStatus.failed,
+        error: _readable(error),
+      );
+      return _reload(artist);
+    }
   }
 
-  /// Fills in every artist that has no picture yet, reporting progress.
+  /// Re-reads the row so callers get the stored status, not a stale copy.
+  Artist _reload(Artist artist) => _db.artist(artist.id) ?? artist;
+
+  String _readable(Object error) => switch (error) {
+    SocketException() => 'No connection',
+    HttpException(:final message) => message,
+    _ => 'Lookup failed',
+  };
+
+  /// Fills in every artist that has never been looked up, reporting progress.
   Stream<(int done, int total)> fetchMissing() async* {
     final missing = _db.artistsMissingImages();
     for (var i = 0; i < missing.length; i++) {
@@ -72,66 +123,63 @@ class ArtistImageRepository {
   void clearCustomImage(Artist artist) =>
       _db.setArtistCustomImage(artist.id, null);
 
-  /// Forgets both images for an artist, leaving the placeholder.
+  /// Forgets everything cached for an artist, including the recorded outcome,
+  /// so the next visit looks it up afresh.
   void clear(Artist artist) {
     for (final path in [artist.imageUrl, artist.customImageUri]) {
       if (path == null) continue;
       final file = File(path);
       if (file.existsSync() && p.isWithin(_dir.path, path)) file.deleteSync();
     }
-    _db.setArtistImage(artist.id, null);
-    _db.setArtistCustomImage(artist.id, null);
+    _db.clearArtistImage(artist.id);
   }
 
   /// `GET /search/artist` on Deezer's public API — no key required.
-  Future<String?> _lookup(String name) async {
-    try {
-      final uri = Uri.https('api.deezer.com', '/search/artist', {
-        'q': name,
-        'limit': '1',
-      });
-      final request = await _client.getUrl(uri).timeout(_timeout);
-      request.headers.set(HttpHeaders.userAgentHeader, _userAgent);
-      final response = await request.close().timeout(_timeout);
-      if (response.statusCode != HttpStatus.ok) {
-        await response.drain<void>();
-        return null;
-      }
-      final json = jsonDecode(await response.transform(utf8.decoder).join());
-      if (json is! Map<String, dynamic>) return null;
-      final data = json['data'];
-      if (data is! List || data.isEmpty) return null;
-      final artist = data.first;
-      if (artist is! Map<String, dynamic>) return null;
-      // Prefer the largest, falling back through the sizes Deezer offers.
-      for (final key in ['picture_xl', 'picture_big', 'picture_medium']) {
-        final url = artist[key];
-        if (url is String && url.isNotEmpty) return url;
-      }
-      return null;
-    } on SocketException {
-      return null;
-    } on HttpException {
-      return null;
+  ///
+  /// Returns null when there is genuinely no match. Throws when the lookup
+  /// itself failed, so the two can be cached differently.
+  Future<({int? id, String? name, String url})?> _lookup(String name) async {
+    final uri = Uri.https('api.deezer.com', '/search/artist', {
+      'q': name,
+      'limit': '1',
+    });
+    final request = await _client.getUrl(uri).timeout(_timeout);
+    request.headers.set(HttpHeaders.userAgentHeader, _userAgent);
+    final response = await request.close().timeout(_timeout);
+    if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>();
+      throw HttpException('Deezer returned ${response.statusCode}', uri: uri);
     }
+    final json = jsonDecode(await response.transform(utf8.decoder).join());
+    if (json is! Map<String, dynamic>) return null;
+    final data = json['data'];
+    if (data is! List || data.isEmpty) return null;
+    final artist = data.first;
+    if (artist is! Map<String, dynamic>) return null;
+    // Prefer the largest, falling back through the sizes Deezer offers.
+    for (final key in ['picture_xl', 'picture_big', 'picture_medium']) {
+      final url = artist[key];
+      if (url is String && url.isNotEmpty) {
+        return (
+          id: (artist['id'] as num?)?.toInt(),
+          name: artist['name'] as String?,
+          url: url,
+        );
+      }
+    }
+    return null;
   }
 
   Future<List<int>?> _download(String url) async {
-    try {
-      final request = await _client.getUrl(Uri.parse(url)).timeout(_timeout);
-      request.headers.set(HttpHeaders.userAgentHeader, _userAgent);
-      final response = await request.close().timeout(_timeout);
-      if (response.statusCode != HttpStatus.ok) {
-        await response.drain<void>();
-        return null;
-      }
-      final bytes = <int>[];
-      await response.forEach(bytes.addAll);
-      return bytes;
-    } on SocketException {
-      return null;
-    } on HttpException {
+    final request = await _client.getUrl(Uri.parse(url)).timeout(_timeout);
+    request.headers.set(HttpHeaders.userAgentHeader, _userAgent);
+    final response = await request.close().timeout(_timeout);
+    if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>();
       return null;
     }
+    final bytes = <int>[];
+    await response.forEach(bytes.addAll);
+    return bytes;
   }
 }

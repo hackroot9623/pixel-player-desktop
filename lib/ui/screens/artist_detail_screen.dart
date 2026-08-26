@@ -54,10 +54,12 @@ class ArtistDetailScreen extends ConsumerWidget {
             MenuItemButton(
               leadingIcon: const Icon(Icons.cloud_download_rounded),
               onPressed: () async {
-                await images.fetch(artist);
+                // Explicit re-fetch bypasses the cached outcome.
+                await images.fetch(artist, force: true);
+                ref.invalidate(artistImageProvider(artist.id));
                 await refresh();
               },
-              child: const Text('Fetch from Deezer'),
+              child: const Text('Re-fetch from Deezer'),
             ),
             MenuItemButton(
               leadingIcon: const Icon(Icons.folder_open_rounded),
@@ -72,6 +74,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                 );
                 if (picked == null) return;
                 await images.setCustomImage(artist, File(picked.path));
+                ref.invalidate(artistImageProvider(artist.id));
                 await refresh();
               },
               child: const Text('Choose a picture…'),
@@ -81,6 +84,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                 leadingIcon: const Icon(Icons.delete_outline_rounded),
                 onPressed: () async {
                   images.clear(artist);
+                  ref.invalidate(artistImageProvider(artist.id));
                   await refresh();
                 },
                 child: const Text('Remove image'),

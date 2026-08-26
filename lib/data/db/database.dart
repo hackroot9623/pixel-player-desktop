@@ -17,7 +17,7 @@ class MusicDatabase {
 
   final Database _db;
 
-  static const schemaVersion = 2;
+  static const schemaVersion = 3;
 
   static Future<MusicDatabase> open(String directory) async {
     await Directory(directory).create(recursive: true);
@@ -133,6 +133,20 @@ class MusicDatabase {
         enabled INTEGER NOT NULL DEFAULT 1
       );
 
+      -- Deliberately not a column on `artists`: replaceLibrary clears that
+      -- table on every rescan, which would throw away downloaded and
+      -- user-chosen pictures along with the lookup history.
+      CREATE TABLE IF NOT EXISTS artist_images (
+        artist_id   INTEGER PRIMARY KEY,
+        image_path  TEXT,
+        custom_path TEXT,
+        remote_id   INTEGER,
+        remote_name TEXT,
+        status      TEXT NOT NULL DEFAULT 'unknown',
+        error       TEXT,
+        fetched_at  INTEGER
+      );
+
       CREATE TABLE IF NOT EXISTS lyrics (
         song_id   TEXT PRIMARY KEY,
         content   TEXT NOT NULL,
@@ -141,6 +155,18 @@ class MusicDatabase {
         offset_ms INTEGER NOT NULL DEFAULT 0
       );
     ''');
+    // Carry across anything the old per-artist columns already held, so an
+    // upgrade does not re-download what the user already has.
+    if (current == 2) {
+      _db.execute('''
+        INSERT OR IGNORE INTO artist_images
+          (artist_id, image_path, custom_path, status)
+        SELECT id, image_url, custom_image_uri,
+               CASE WHEN image_url IS NULL THEN 'unknown' ELSE 'ok' END
+        FROM artists
+        WHERE image_url IS NOT NULL OR custom_image_uri IS NOT NULL
+      ''');
+    }
     _db.execute('PRAGMA user_version = $schemaVersion');
   }
 
@@ -344,23 +370,56 @@ class MusicDatabase {
 
   // --------------------------------------------------------- artist images
 
-  /// Cached remote image (Deezer), as a local file path once downloaded.
-  void setArtistImage(int artistId, String? url) => _db.execute(
-    'UPDATE artists SET image_url = ? WHERE id = ?',
-    [url, artistId],
+  /// Records the outcome of a lookup, successful or not, so it is not
+  /// repeated on every visit to the artist.
+  void saveArtistImage(
+    int artistId, {
+    String? imagePath,
+    int? remoteId,
+    String? remoteName,
+    required ArtistImageStatus status,
+    String? error,
+  }) => _db.execute(
+    '''
+    INSERT INTO artist_images
+      (artist_id, image_path, remote_id, remote_name, status, error, fetched_at)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(artist_id) DO UPDATE SET
+      image_path = COALESCE(excluded.image_path, artist_images.image_path),
+      remote_id = COALESCE(excluded.remote_id, artist_images.remote_id),
+      remote_name = COALESCE(excluded.remote_name, artist_images.remote_name),
+      status = excluded.status,
+      error = excluded.error,
+      fetched_at = excluded.fetched_at
+    ''',
+    [
+      artistId,
+      imagePath,
+      remoteId,
+      remoteName,
+      status.name,
+      error,
+      DateTime.now().millisecondsSinceEpoch,
+    ],
   );
 
   /// A picture the user chose, which wins over the remote one.
   void setArtistCustomImage(int artistId, String? path) => _db.execute(
-    'UPDATE artists SET custom_image_uri = ? WHERE id = ?',
-    [path, artistId],
+    '''
+    INSERT INTO artist_images (artist_id, custom_path, status)
+    VALUES (?, ?, 'unknown')
+    ON CONFLICT(artist_id) DO UPDATE SET custom_path = excluded.custom_path
+    ''',
+    [artistId, path],
   );
 
-  /// Artists with no image yet, for the batch fetch.
-  List<Artist> artistsMissingImages() =>
-      allArtists()
-          .where((artist) => artist.effectiveImageUrl == null)
-          .toList();
+  void clearArtistImage(int artistId) =>
+      _db.execute('DELETE FROM artist_images WHERE artist_id = ?', [artistId]);
+
+  /// Artists that have never been looked up, for the batch fetch.
+  List<Artist> artistsMissingImages() => allArtists()
+      .where((artist) => artist.effectiveImageUrl == null && !artist.imageLookedUp)
+      .toList();
 
   // ----------------------------------------------------------------- reads
 
@@ -551,10 +610,11 @@ class MusicDatabase {
 
   List<Artist> allArtists() => _db
       .select('''
-        SELECT a.id, a.name, a.image_url, a.custom_image_uri,
+        SELECT a.id, a.name, i.image_path, i.custom_path, i.status, i.error,
                COUNT(DISTINCT sa.song_id) AS song_count,
                COUNT(DISTINCT s.album_id) AS album_count
         FROM artists a
+        LEFT JOIN artist_images i ON i.artist_id = a.id
         LEFT JOIN song_artists sa ON sa.artist_id = a.id
         LEFT JOIN songs s ON s.id = sa.song_id
         GROUP BY a.id
@@ -567,11 +627,19 @@ class MusicDatabase {
           name: r['name'] as String,
           songCount: r['song_count'] as int,
           albumCount: r['album_count'] as int,
-          imageUrl: r['image_url'] as String?,
-          customImageUri: r['custom_image_uri'] as String?,
+          imageUrl: r['image_path'] as String?,
+          customImageUri: r['custom_path'] as String?,
+          imageStatus: _artistImageStatus(r['status'] as String?),
+          imageError: r['error'] as String?,
         ),
       )
       .toList();
+
+  static ArtistImageStatus _artistImageStatus(String? name) =>
+      ArtistImageStatus.values.firstWhere(
+        (status) => status.name == name,
+        orElse: () => ArtistImageStatus.unknown,
+      );
 
   Artist? artist(int id) => allArtists().where((a) => a.id == id).firstOrNull;
 

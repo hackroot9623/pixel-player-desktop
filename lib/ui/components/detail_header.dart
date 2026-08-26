@@ -18,6 +18,7 @@ class DetailScaffold extends ConsumerWidget {
     this.artPath,
     this.artIcon = Icons.album_rounded,
     this.circularArt = false,
+    this.artOverride,
     this.heroTag,
     this.actions = const [],
     this.extraSlivers = const [],
@@ -30,6 +31,10 @@ class DetailScaffold extends ConsumerWidget {
   final String? artPath;
   final IconData artIcon;
   final bool circularArt;
+
+  /// Replaces the artwork entirely — the artist screen uses it so the avatar
+  /// can carry its own loading and retry states.
+  final Widget? artOverride;
   final Object? heroTag;
   final List<Widget> actions;
 
@@ -46,13 +51,15 @@ class DetailScaffold extends ConsumerWidget {
       milliseconds: songs.fold(0, (sum, s) => sum + s.duration),
     );
 
-    final art = AlbumArt(
-      path: artPath,
-      size: 200,
-      radius: circularArt ? 100 : 24,
-      icon: artIcon,
-      heroTag: heroTag,
-    );
+    final art =
+        artOverride ??
+        AlbumArt(
+          path: artPath,
+          size: 200,
+          radius: circularArt ? 100 : 24,
+          icon: artIcon,
+          heroTag: heroTag,
+        );
 
     return Scaffold(
       body: CustomScrollView(
@@ -68,7 +75,9 @@ class DetailScaffold extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  circularArt ? ClipOval(child: art) : art,
+                  circularArt && artOverride == null
+                      ? ClipOval(child: art)
+                      : art,
                   const SizedBox(width: 24),
                   Expanded(
                     child: Column(

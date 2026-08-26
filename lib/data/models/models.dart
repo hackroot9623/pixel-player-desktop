@@ -136,6 +136,25 @@ class Album {
   final String? albumArtist;
 }
 
+/// Outcome of an artist-image lookup, cached so it is not repeated.
+enum ArtistImageStatus {
+  /// Never looked up.
+  unknown,
+
+  /// Downloaded and on disk.
+  ok,
+
+  /// The provider has no such artist. Not an error, and not worth retrying on
+  /// every visit.
+  notFound,
+
+  /// The lookup failed — offline, timeout, bad response. Worth retrying, which
+  /// is why the avatar offers it.
+  failed;
+
+  bool get isFailure => this == ArtistImageStatus.failed;
+}
+
 class Artist {
   const Artist({
     required this.id,
@@ -144,6 +163,8 @@ class Artist {
     this.albumCount = 0,
     this.imageUrl,
     this.customImageUri,
+    this.imageStatus = ArtistImageStatus.unknown,
+    this.imageError,
   });
 
   final int id;
@@ -156,6 +177,13 @@ class Artist {
 
   /// User-supplied local image, wins over [imageUrl].
   final String? customImageUri;
+
+  final ArtistImageStatus imageStatus;
+  final String? imageError;
+
+  /// True when a lookup has already been made, whatever the result — the
+  /// screen only auto-fetches when this is false.
+  bool get imageLookedUp => imageStatus != ArtistImageStatus.unknown;
 
   String? get effectiveImageUrl {
     final custom = customImageUri;

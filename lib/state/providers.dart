@@ -545,3 +545,24 @@ final tagEditorProvider = Provider<TagEditor>(
     ref.watch(artworkDirProvider),
   ),
 );
+
+/// The artist image, fetched on first watch.
+///
+/// Opening the artist screen is what triggers the lookup — no button press —
+/// and the repository records every outcome, so this resolves from the cache
+/// on every later visit.
+final artistImageProvider = FutureProvider.family<Artist, int>((
+  ref,
+  artistId,
+) async {
+  ref.watch(libraryProvider);
+  final artist = ref.watch(databaseProvider).artist(artistId);
+  if (artist == null) throw StateError('No artist $artistId');
+  return ref.watch(artistImageRepositoryProvider).fetch(artist);
+});
+
+/// Retries a failed lookup, bypassing the recorded outcome.
+Future<void> retryArtistImage(WidgetRef ref, Artist artist) async {
+  await ref.read(artistImageRepositoryProvider).fetch(artist, force: true);
+  ref.invalidate(artistImageProvider(artist.id));
+}
