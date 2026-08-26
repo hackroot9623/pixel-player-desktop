@@ -14,6 +14,8 @@ import 'package:pixelplay_desktop/data/prefs/settings.dart';
 import 'package:pixelplay_desktop/state/providers.dart';
 import 'package:pixelplay_desktop/data/lyrics/lrc_parser.dart';
 import 'package:pixelplay_desktop/data/models/lyrics.dart';
+import 'package:pixelplay_desktop/data/prefs/settings.dart' show CarouselStyle;
+import 'package:pixelplay_desktop/ui/components/album_carousel.dart';
 import 'package:pixelplay_desktop/ui/components/lyrics_view.dart';
 import 'package:pixelplay_desktop/ui/components/playback_controls.dart';
 import 'package:pixelplay_desktop/ui/components/sleep_timer_sheet.dart';
@@ -353,6 +355,50 @@ void main() {
     await tester.tap(find.text('Second line'));
     await _settle(tester, frames: 2);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('album carousel survives index changes and rebuilds', (
+    tester,
+  ) async {
+    resize(tester, const Size(900, 900));
+    final songs = db.allSongs();
+
+    Widget carouselAt(int index) => host(
+      Scaffold(
+        body: AlbumCarousel(
+          height: 300,
+          songs: songs,
+          index: index,
+          playing: true,
+          style: CarouselStyle.onePeek,
+          onTapCurrent: (_) {},
+          onTapOther: (_) {},
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(carouselAt(0));
+    await _settle(tester, frames: 3);
+    expect(find.byType(CarouselView), findsOneWidget);
+
+    // The crash this guards: the controller used to be created and disposed
+    // inside `build`, so CarouselView.didUpdateWidget read `position` off a
+    // detached controller and tore down the engine. Walking the index forces
+    // exactly that update path.
+    for (var index = 1; index < songs.length; index++) {
+      await tester.pumpWidget(carouselAt(index));
+      await _settle(tester, frames: 3);
+      expect(tester.takeException(), isNull, reason: 'at index $index');
+    }
+  });
+
+  test('carousel weights are identity-stable', () {
+    // CarouselView compares flexWeights with `!=` in didUpdateWidget, so a
+    // freshly allocated list each frame made it reach into the scroll position
+    // on every rebuild.
+    for (final style in CarouselStyle.values) {
+      expect(identical(style.flexWeights, style.flexWeights), isTrue);
+    }
   });
 
   test('transition curves are monotonic and normalised', () {

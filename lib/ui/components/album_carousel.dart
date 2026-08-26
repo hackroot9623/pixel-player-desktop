@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../state/providers.dart';
-import '../navigation.dart';
+import '../../data/models/models.dart';
+import '../../data/prefs/settings.dart' show CarouselStyle;
 import 'album_art.dart';
 
 /// Port of `AlbumCarouselSection` + `RoundedParallaxCarousell`.
@@ -13,44 +12,76 @@ import 'album_art.dart';
 /// the same design expressed through the framework: one item per queue entry,
 /// neighbours peeking in according to the user's carousel style, and the
 /// "pause squish" scale from `FullPlayerAlbumCoverSection`.
-class AlbumCarousel extends ConsumerStatefulWidget {
-  const AlbumCarousel({super.key, required this.height});
+///
+/// Deliberately presentational — it takes the queue rather than reading the
+/// player — so it can be rendered (and regression-tested) without an audio
+/// device.
+class AlbumCarousel extends StatefulWidget {
+  const AlbumCarousel({
+    super.key,
+    required this.height,
+    required this.songs,
+    required this.index,
+    required this.playing,
+    required this.style,
+    required this.onTapCurrent,
+    required this.onTapOther,
+  });
 
   final double height;
+  final List<Song> songs;
+  final int index;
+  final bool playing;
+  final CarouselStyle style;
+
+  /// Tapping the centre item opens its album, matching `onAlbumClick`.
+  final ValueChanged<Song> onTapCurrent;
+
+  /// Tapping a peeking neighbour jumps the queue to it (`onSongSelected`).
+  final ValueChanged<int> onTapOther;
 
   @override
-  ConsumerState<AlbumCarousel> createState() => _AlbumCarouselState();
+  State<AlbumCarousel> createState() => _AlbumCarouselState();
 }
 
-class _AlbumCarouselState extends ConsumerState<AlbumCarousel> {
-  CarouselController? _controller;
-  int _attachedIndex = -1;
+class _AlbumCarouselState extends State<AlbumCarousel> {
+  /// One controller for the widget's lifetime.
+  ///
+  /// Creating (or disposing) it in `build` crashed the engine: `CarouselView`
+  /// keeps a reference and reads `controller.position` from
+  /// `didUpdateWidget`, so a swapped-in controller was always detached, and
+  /// disposing the old one mid-frame left dangling dependents behind.
+  late final CarouselController _controller = CarouselController(
+    initialItem: widget.index,
+  );
 
   @override
   void dispose() {
-    _controller?.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) {
-    final player = ref.watch(playerProvider);
-    final style = ref.watch(settingsProvider).carouselStyle;
-    final queue = player.queue;
-    if (queue.isEmpty) return SizedBox(height: widget.height);
-
-    // Rebuild the controller when the playing index changes underneath us
-    // (mpv advanced, or the user picked a track elsewhere) so the carousel
-    // scrolls to the new track.
-    if (_attachedIndex != player.index) {
-      _attachedIndex = player.index;
-      _controller?.dispose();
-      _controller = CarouselController(initialItem: player.index);
+  void didUpdateWidget(AlbumCarousel old) {
+    super.didUpdateWidget(old);
+    // Follow the playing track when it changes underneath us — mpv advanced, or
+    // the user picked something elsewhere.
+    if (widget.index != old.index && _controller.hasClients) {
+      _controller.animateToItem(
+        widget.index,
+        duration: const Duration(milliseconds: 380),
+        curve: Curves.easeOutCubic,
+      );
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.songs.isEmpty) return SizedBox(height: widget.height);
 
     return TweenAnimationBuilder<double>(
       // 0.95 while paused — `albumArtScale`, 260 ms FastOutSlowIn.
-      tween: Tween(end: player.playing ? 1.0 : 0.95),
+      tween: Tween(end: widget.playing ? 1.0 : 0.95),
       duration: const Duration(milliseconds: 260),
       curve: Curves.fastOutSlowIn,
       builder: (context, scale, child) =>
@@ -59,7 +90,8 @@ class _AlbumCarouselState extends ConsumerState<AlbumCarousel> {
         height: widget.height,
         child: CarouselView.weighted(
           controller: _controller,
-          flexWeights: [for (final w in style.flexWeights) w.round()],
+          // Identity-stable const list; see CarouselStyle.flexWeights.
+          flexWeights: widget.style.flexWeights,
           consumeMaxWeight: false,
           itemSnapping: true,
           shape: const RoundedRectangleBorder(
@@ -67,23 +99,15 @@ class _AlbumCarouselState extends ConsumerState<AlbumCarousel> {
           ),
           backgroundColor: Colors.transparent,
           padding: const EdgeInsets.symmetric(horizontal: 4),
-          onTap: (index) {
-            // Tapping the centre item opens its album; tapping a peeking
-            // neighbour jumps the queue to it, matching `onSongSelected`.
-            if (index == player.index) {
-              openAlbum(context, queue[index].albumId);
-            } else {
-              player.jumpTo(index);
-            }
-          },
+          onTap: (index) => index == widget.index
+              ? widget.onTapCurrent(widget.songs[index])
+              : widget.onTapOther(index),
           children: [
-            for (final song in queue)
+            for (final (i, song) in widget.songs.indexed)
               AlbumArt(
                 path: song.albumArtPath,
                 radius: 28,
-                heroTag: song.id == player.current?.id
-                    ? 'now-playing-art'
-                    : null,
+                heroTag: i == widget.index ? 'now-playing-art' : null,
               ),
           ],
         ),

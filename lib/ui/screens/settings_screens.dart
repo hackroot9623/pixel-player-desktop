@@ -457,17 +457,14 @@ class PlayerLookScreen extends ConsumerWidget {
                           child: Row(
                             spacing: 4,
                             children: [
-                              for (final weight in style.flexWeights)
+                              for (final (i, weight)
+                                  in style.flexWeights.indexed)
                                 Expanded(
-                                  flex: weight.round(),
+                                  flex: weight,
                                   child: AlbumArt(
                                     path: songs.isEmpty
                                         ? null
-                                        : songs[style.flexWeights.indexOf(
-                                                weight,
-                                              ) %
-                                              songs.length]
-                                              .albumArtPath,
+                                        : songs[i % songs.length].albumArtPath,
                                     radius: 10,
                                   ),
                                 ),

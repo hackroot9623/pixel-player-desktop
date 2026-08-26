@@ -12,9 +12,9 @@ import '../scanner/library_scanner.dart';
 /// the full player's carousel. Ported from `CarouselStyle` in the Android
 /// player settings.
 enum CarouselStyle {
-  noPeek('No peek', [1.0]),
-  onePeek('One peek', [7.0, 1.0]),
-  twoPeek('Two peek', [1.0, 7.0, 1.0]);
+  noPeek('No peek', [1]),
+  onePeek('One peek', [7, 1]),
+  twoPeek('Two peek', [1, 7, 1]);
 
   const CarouselStyle(this.label, this.flexWeights);
 
@@ -23,7 +23,11 @@ enum CarouselStyle {
   /// Weights handed to `CarouselView.weighted`, which is Flutter's
   /// implementation of the same M3 multi-browse layout the Kotlin
   /// `RoundedHorizontalMultiBrowseCarousel` reimplements.
-  final List<double> flexWeights;
+  ///
+  /// Const, and passed through by identity: `CarouselView` compares this list
+  /// with `!=` in `didUpdateWidget`, so building a fresh list each frame made it
+  /// reach into the scroll position on every rebuild.
+  final List<int> flexWeights;
 
   /// Carousel height as a fraction of its width, matching
   /// `FullPlayerAlbumCoverSection`.

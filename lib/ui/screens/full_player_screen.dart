@@ -188,6 +188,12 @@ class _NowPlayingPane extends ConsumerWidget {
                       constraints.maxWidth *
                       settings.carouselStyle.heightFactor *
                       (compact ? 0.78 : 1.0),
+                  songs: player.queue,
+                  index: player.index,
+                  playing: player.playing,
+                  style: settings.carouselStyle,
+                  onTapCurrent: (song) => openAlbum(context, song.albumId),
+                  onTapOther: player.jumpTo,
                 ),
               ),
               const SizedBox(height: 24),

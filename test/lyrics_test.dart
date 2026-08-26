@@ -86,7 +86,7 @@ void main() {
 
     test('strips zero-width and bidi characters', () {
       final lyrics = parseLyrics(
-        '[00:01.00]Clean​line‮',
+        '[00:01.00]Clean\u200Bline\u202E',
         source: LyricsSource.remote,
       )!;
       expect(lyrics.synced!.single.line, 'Cleanline');
