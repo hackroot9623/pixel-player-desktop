@@ -398,19 +398,6 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
-  // ------------------------------------------------------------- favourites
-
-  bool toggleFavorite(Song song) {
-    final next = !_db.isFavorite(song.id);
-    _db.setFavorite(song.id, next);
-    _queue = [
-      for (final s in _queue)
-        s.id == song.id ? s.copyWith(isFavorite: next) : s,
-    ];
-    notifyListeners();
-    return next;
-  }
-
   void _onTrackChanged() {
     final song = current;
     if (song == null) return;

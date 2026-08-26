@@ -392,6 +392,77 @@ void main() {
     }
   });
 
+  testWidgets('a wrapping lyric line is not clipped or overlapped', (
+    tester,
+  ) async {
+    // Narrow on purpose so the long line has to wrap.
+    resize(tester, const Size(420, 700));
+    final lyrics = parseLyrics(
+      '[00:01.00]short\n'
+      '[00:05.00]no voy a aguantar mas la presion y no voy a encerrarme en tu '
+      'prision porque me asusta tu forma de curar\n'
+      '[00:09.00]after',
+      source: LyricsSource.local,
+    )!;
+    await tester.pumpWidget(host(Scaffold(body: LyricsView(lyrics: lyrics))));
+    await _settle(tester, frames: 3);
+
+    Rect rectOf(String text) => tester.getRect(find.text(text));
+    final long = rectOf(
+      'no voy a aguantar mas la presion y no voy a encerrarme en tu prision '
+      'porque me asusta tu forma de curar',
+    );
+
+    // A fixed itemExtent used to crop this to one row and let the text spill
+    // over its neighbours.
+    expect(
+      long.height,
+      greaterThan(40),
+      reason: 'the line wrapped to more than one row',
+    );
+    expect(
+      rectOf('short').bottom,
+      lessThanOrEqualTo(long.top),
+      reason: 'the previous line must not overlap it',
+    );
+    expect(
+      long.bottom,
+      lessThanOrEqualTo(rectOf('after').top),
+      reason: 'it must not overlap the next line',
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  test('favourite state follows the database, not the queue snapshot', () {
+    // The bug: the player's like button read `isFavorite` off the Song objects
+    // held in the queue, which are snapshots taken when the queue was built, so
+    // it never changed. This is the provider the button reads now.
+    final container = ProviderContainer(
+      overrides: [
+        settingsProvider.overrideWith((ref) => settings),
+        databaseProvider.overrideWithValue(db),
+        artworkDirProvider.overrideWithValue(p.join(tmp.path, 'artwork')),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final song = db.allSongs().first;
+    expect(song.isFavorite, isFalse);
+    expect(container.read(isFavoriteProvider(song.id)), isFalse);
+
+    container.read(libraryProvider.notifier).toggleFavorite(song);
+    expect(db.isFavorite(song.id), isTrue, reason: 'written through');
+    expect(
+      container.read(isFavoriteProvider(song.id)),
+      isTrue,
+      reason: 'and read back, even though `song` is still the stale snapshot',
+    );
+    expect(song.isFavorite, isFalse, reason: 'the snapshot really is stale');
+
+    container.read(libraryProvider.notifier).toggleFavorite(song);
+    expect(container.read(isFavoriteProvider(song.id)), isFalse);
+  });
+
   test('carousel weights are identity-stable', () {
     // CarouselView compares flexWeights with `!=` in didUpdateWidget, so a
     // freshly allocated list each frame made it reach into the scroll position

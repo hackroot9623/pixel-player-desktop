@@ -63,7 +63,8 @@ class _TransportBarState extends ConsumerState<TransportBar> {
     final player = ref.watch(playerProvider);
     final scheme = Theme.of(context).colorScheme;
     final song = player.current;
-    final favorite = song?.isFavorite ?? false;
+    final favorite =
+        song != null && ref.watch(isFavoriteProvider(song.id));
 
     final skipSize = widget.compact ? 34.0 : 40.0;
     final playSize = widget.compact ? 42.0 : 52.0;

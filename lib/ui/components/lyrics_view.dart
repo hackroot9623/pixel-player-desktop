@@ -29,10 +29,14 @@ class LyricsView extends ConsumerStatefulWidget {
 
 class _LyricsViewState extends ConsumerState<LyricsView> {
   final _controller = ScrollController();
-  static const _lineExtent = 62.0;
 
   int _activeIndex = -1;
   bool _userScrolling = false;
+
+  /// Attached to whichever line is active, so it can be scrolled to by its own
+  /// laid-out geometry. Lines wrap to different heights, so there is no fixed
+  /// extent to compute an offset from.
+  GlobalKey? _activeKey;
 
   @override
   void dispose() {
@@ -41,13 +45,26 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
   }
 
   /// Keeps the active line centred, unless the user has taken over scrolling.
-  void _followActive(int index, double viewportHeight) {
+  void _followActive(int index, int total) {
     if (_userScrolling || index < 0 || !_controller.hasClients) return;
-    final target = (index * _lineExtent) - (viewportHeight / 2) + _lineExtent;
-    _controller.animateTo(
-      target.clamp(0.0, _controller.position.maxScrollExtent),
-      duration: const Duration(milliseconds: 420),
-      curve: Curves.easeOutCubic,
+    final context = _activeKey?.currentContext;
+    if (context != null) {
+      Scrollable.ensureVisible(
+        context,
+        alignment: 0.5,
+        duration: const Duration(milliseconds: 420),
+        curve: Curves.easeOutCubic,
+      );
+      return;
+    }
+    // The line is too far off-screen to have been built (the user seeked
+    // across the track). Approximate, and the next line lands it exactly.
+    final position = _controller.position;
+    _controller.jumpTo(
+      (index / total * position.maxScrollExtent).clamp(
+        0.0,
+        position.maxScrollExtent,
+      ),
     );
   }
 
@@ -67,48 +84,49 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
         }
         return false;
       },
-      child: LayoutBuilder(
-        builder: (context, constraints) => PositionBuilder(
-          builder: (context, position) {
-            final index = widget.lyrics.activeIndexAt(position);
-            if (index != _activeIndex) {
-              _activeIndex = index;
-              WidgetsBinding.instance.addPostFrameCallback(
-                (_) => _followActive(index, constraints.maxHeight),
-              );
-            }
-            return ListView.builder(
-              controller: _controller,
-              padding: widget.padding,
-              itemCount: synced.length,
-              itemExtent: _lineExtent,
-              itemBuilder: (context, i) {
-                final line = synced[i];
-                final distance = (i - index).abs();
-                final isActive = i == index;
-                return _LyricLine(
-                  text: line.isBlank ? '♪' : line.line,
-                  active: isActive,
-                  // Fade with distance so the eye lands on the active line.
-                  opacity: isActive
-                      ? 1
-                      : (distance > 6 ? 0.25 : 0.9 - distance * 0.1),
-                  centerAlign: widget.centerAlign,
-                  onTap: () => player.seek(
-                    Duration(
-                      milliseconds:
-                          (line.timeMs + widget.lyrics.offsetMs).clamp(
-                            0,
-                            player.duration.inMilliseconds,
-                          ),
+      child: PositionBuilder(
+        builder: (context, position) {
+          final index = widget.lyrics.activeIndexAt(position);
+          if (index != _activeIndex) {
+            _activeIndex = index;
+            _activeKey = GlobalKey();
+            WidgetsBinding.instance.addPostFrameCallback(
+              (_) => _followActive(index, synced.length),
+            );
+          }
+          return ListView.builder(
+            controller: _controller,
+            padding: widget.padding,
+            itemCount: synced.length,
+            // No itemExtent: a wrapped line is taller than a single one, and
+            // pinning every row to the same height made long lines overlap
+            // their neighbours.
+            itemBuilder: (context, i) {
+              final line = synced[i];
+              final distance = (i - index).abs();
+              final isActive = i == index;
+              return _LyricLine(
+                key: isActive ? _activeKey : null,
+                text: line.isBlank ? '♪' : line.line,
+                active: isActive,
+                // Fade with distance so the eye lands on the active line.
+                opacity: isActive
+                    ? 1
+                    : (distance > 6 ? 0.25 : 0.9 - distance * 0.1),
+                centerAlign: widget.centerAlign,
+                onTap: () => player.seek(
+                  Duration(
+                    milliseconds: (line.timeMs + widget.lyrics.offsetMs).clamp(
+                      0,
+                      player.duration.inMilliseconds,
                     ),
                   ),
-                  style: theme.textTheme.titleLarge,
-                );
-              },
-            );
-          },
-        ),
+                ),
+                style: theme.textTheme.titleLarge,
+              );
+            },
+          );
+        },
       ),
     );
   }
@@ -139,6 +157,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
 class _LyricLine extends StatelessWidget {
   const _LyricLine({
+    super.key,
     required this.text,
     required this.active,
     required this.opacity,
@@ -173,11 +192,12 @@ class _LyricLine extends StatelessWidget {
                 : scheme.onSurface.withValues(alpha: opacity.clamp(0.15, 1)),
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            // Vertical padding is the gap between lines now that each one sizes
+            // itself; long lines wrap rather than being truncated.
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: Text(
               text,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+              softWrap: true,
               textAlign: centerAlign ? TextAlign.center : TextAlign.start,
             ),
           ),

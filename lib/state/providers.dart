@@ -284,6 +284,16 @@ final songsInFolderProvider = Provider.family<List<Song>, String>((ref, dir) {
   return ref.watch(databaseProvider).songsInDirectory(dir);
 });
 
+/// Whether a song is liked, straight from the database.
+///
+/// The `Song` objects held in the player's queue are snapshots taken when the
+/// queue was built, so their `isFavorite` never changes — reading it made the
+/// player's like button inert. This is the single source of truth.
+final isFavoriteProvider = Provider.family<bool, String>((ref, songId) {
+  ref.watch(libraryProvider);
+  return ref.watch(databaseProvider).isFavorite(songId);
+});
+
 final recentlyPlayedProvider = Provider<List<Song>>((ref) {
   ref.watch(libraryProvider);
   final db = ref.watch(databaseProvider);
