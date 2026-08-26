@@ -25,9 +25,12 @@ class AlbumArt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    // No existsSync() here: this widget renders once per visible row, and a
+    // stat syscall inside build showed up as list-scrolling jank. A missing
+    // file falls through to errorBuilder instead.
     final file = path == null ? null : File(path!);
     Widget child;
-    if (file != null && file.existsSync()) {
+    if (file != null) {
       child = Image.file(
         file,
         width: size,

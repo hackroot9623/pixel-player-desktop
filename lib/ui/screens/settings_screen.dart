@@ -6,6 +6,7 @@ import '../../data/scanner/library_scanner.dart';
 import '../../state/providers.dart';
 import '../components/common.dart';
 import '../components/library_widgets.dart';
+import '../navigation.dart';
 
 /// Port of `presentation/screens/SettingsScreen` + `SettingsComponents` +
 /// `PaletteStyleSettingsScreen` + `DelimiterConfigScreen`. Phase-2..8 settings
@@ -155,15 +156,30 @@ class SettingsScreen extends ConsumerWidget {
                   ),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.gradient_rounded),
+                  title: const Text('Palette style'),
+                  subtitle: Text(
+                    'How one colour becomes the whole palette · '
+                    '${settings.paletteStyle.name}',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openPaletteStyle(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.rounded_corner_rounded),
                   title: const Text('Navigation corner radius'),
-                  subtitle: Slider(
-                    value: settings.navBarCornerRadius,
-                    max: 48,
-                    divisions: 12,
-                    label: settings.navBarCornerRadius.round().toString(),
-                    onChanged: (value) => settings.navBarCornerRadius = value,
+                  subtitle: Text('${settings.navBarCornerRadius.round()} px'),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openNavCornerRadius(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.play_circle_outline_rounded),
+                  title: const Text('Player look'),
+                  subtitle: Text(
+                    'Artwork carousel · ${settings.carouselStyle.label}',
                   ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openPlayerLook(context),
                 ),
               ],
             ),
@@ -243,22 +259,15 @@ class SettingsScreen extends ConsumerWidget {
               children: [
                 ListTile(
                   leading: const Icon(Icons.blur_on_rounded),
-                  title: const Text('Crossfade'),
+                  title: const Text('Transitions'),
                   subtitle: Text(
-                    settings.crossfadeMs == 0
-                        ? 'Off (gapless)'
-                        : '${(settings.crossfadeMs / 1000).toStringAsFixed(1)} s',
+                    settings.transition.enabled
+                        ? '${settings.transition.mode.label} · '
+                              '${(settings.transition.durationMs / 1000).toStringAsFixed(1)} s'
+                        : 'Off (gapless)',
                   ),
-                  trailing: SizedBox(
-                    width: 240,
-                    child: Slider(
-                      value: settings.crossfadeMs.toDouble(),
-                      max: 12000,
-                      divisions: 24,
-                      onChanged: (value) =>
-                          settings.crossfadeMs = value.round(),
-                    ),
-                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openTransitionEditor(context),
                 ),
               ],
             ),

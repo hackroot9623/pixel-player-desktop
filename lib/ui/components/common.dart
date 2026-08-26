@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../state/providers.dart';
 import '../theme/typography.dart';
 
 String formatDuration(Duration duration) {
@@ -250,4 +252,21 @@ class _PlayingEqIconState extends State<PlayingEqIcon>
       ),
     );
   }
+}
+
+/// Rebuilds only on playback-position changes.
+///
+/// The player's position ticks many times a second. It is deliberately kept off
+/// the main notifier so that seek bars and time labels can subscribe to it
+/// without dragging every other listener into a rebuild.
+class PositionBuilder extends ConsumerWidget {
+  const PositionBuilder({super.key, required this.builder});
+
+  final Widget Function(BuildContext context, Duration position) builder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => ValueListenableBuilder(
+    valueListenable: ref.read(playerProvider).positionListenable,
+    builder: (context, position, _) => builder(context, position),
+  );
 }

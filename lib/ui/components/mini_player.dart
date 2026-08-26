@@ -6,6 +6,7 @@ import '../screens/full_player_screen.dart';
 import '../theme/shapes.dart';
 import 'album_art.dart';
 import 'common.dart';
+import 'playback_controls.dart';
 import 'queue_panel.dart';
 
 const miniPlayerHeight = 84.0;
@@ -32,13 +33,22 @@ class MiniPlayer extends ConsumerWidget {
           height: miniPlayerHeight,
           child: Column(
             children: [
-              // Thin progress line, doubling as a scrub target.
+              // Thin progress line. Scoped to the position listenable so the
+              // rest of the bar is not rebuilt many times a second.
               SizedBox(
                 height: 4,
-                child: LinearProgressIndicator(
-                  value: player.progress,
-                  minHeight: 4,
-                  backgroundColor: theme.colorScheme.surfaceContainerHighest,
+                child: PositionBuilder(
+                  builder: (context, position) {
+                    final total = player.duration.inMilliseconds;
+                    return LinearProgressIndicator(
+                      value: total <= 0
+                          ? 0
+                          : (position.inMilliseconds / total).clamp(0.0, 1.0),
+                      minHeight: 4,
+                      backgroundColor:
+                          theme.colorScheme.surfaceContainerHighest,
+                    );
+                  },
                 ),
               ),
               Expanded(
@@ -84,43 +94,18 @@ class MiniPlayer extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    Text(
-                      '${formatDuration(player.position)} / '
-                      '${formatDuration(player.duration)}',
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    PositionBuilder(
+                      builder: (context, position) => Text(
+                        '${formatDuration(position)} / '
+                        '${formatDuration(player.duration)}',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    IconButton(
-                      tooltip: song.isFavorite ? 'Unlike' : 'Like',
-                      icon: Icon(
-                        song.isFavorite
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                      ),
-                      onPressed: () =>
-                          ref.read(libraryProvider.notifier).toggleFavorite(song),
-                    ),
-                    IconButton(
-                      tooltip: 'Previous',
-                      icon: const Icon(Icons.skip_previous_rounded),
-                      onPressed: player.previous,
-                    ),
-                    IconButton.filled(
-                      tooltip: player.playing ? 'Pause' : 'Play',
-                      icon: Icon(
-                        player.playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                      ),
-                      onPressed: player.toggle,
-                    ),
-                    IconButton(
-                      tooltip: 'Next',
-                      icon: const Icon(Icons.skip_next_rounded),
-                      onPressed: player.next,
-                    ),
+                    const TransportBar(compact: true),
+                    const SizedBox(width: 8),
                     const _VolumeControl(),
                     IconButton(
                       tooltip: 'Queue',

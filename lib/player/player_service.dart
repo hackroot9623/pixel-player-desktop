@@ -5,6 +5,7 @@ import 'package:media_kit/media_kit.dart';
 
 import '../data/db/database.dart';
 import '../data/models/models.dart' show Song;
+import '../data/models/transition.dart';
 import '../data/prefs/settings.dart';
 
 enum RepeatMode { off, all, one }
@@ -33,9 +34,26 @@ class PlayerService extends ChangeNotifier {
   int _index = 0;
   bool _playing = false;
   Duration _position = Duration.zero;
+
+  /// Position updates arrive many times a second. Routing them through
+  /// `notifyListeners()` rebuilt every widget watching this service — including
+  /// every row of the library list — so they get their own listenable and only
+  /// the seek bar and time labels subscribe.
+  final positionListenable = ValueNotifier<Duration>(Duration.zero);
   Duration _duration = Duration.zero;
   bool _buffering = false;
   String? _lastRecordedSongId;
+
+  /// Volume actually sent to mpv is `_settings.volume * _fadeFactor`, so track
+  /// transitions and the sleep timer can duck the output without clobbering the
+  /// user's volume setting.
+  double _fadeFactor = 1;
+  Timer? _sleepTimer;
+  DateTime? _sleepTimerEndsAt;
+  bool _sleepAtEndOfTrack = false;
+
+  /// "Stop after N songs" from the timer sheet; 0 means inactive.
+  int _sleepAfterTracks = 0;
 
   List<Song> get queue => _queue;
   int get index => _index;
@@ -52,6 +70,21 @@ class PlayerService extends ChangeNotifier {
   RepeatMode get repeatMode => RepeatMode.values[_settings.repeatMode];
   double get volume => _settings.volume;
 
+  TransitionSettings get transition => _settings.transition;
+
+  /// Non-null while a sleep timer is counting down.
+  Duration? get sleepTimerRemaining {
+    final endsAt = _sleepTimerEndsAt;
+    if (endsAt == null) return null;
+    final left = endsAt.difference(DateTime.now());
+    return left.isNegative ? Duration.zero : left;
+  }
+
+  bool get sleepAtEndOfTrack => _sleepAtEndOfTrack;
+  int get sleepAfterTracks => _sleepAfterTracks;
+  bool get sleepTimerActive =>
+      _sleepTimerEndsAt != null || _sleepAtEndOfTrack || _sleepAfterTracks > 0;
+
   double get progress {
     final total = duration.inMilliseconds;
     if (total <= 0) return 0;
@@ -66,7 +99,8 @@ class PlayerService extends ChangeNotifier {
       }),
       _player.stream.position.listen((value) {
         _position = value;
-        notifyListeners();
+        positionListenable.value = value;
+        _updateTransitionFade();
       }),
       _player.stream.duration.listen((value) {
         _duration = value;
@@ -80,6 +114,13 @@ class PlayerService extends ChangeNotifier {
       // "now playing" row stay in sync with what is actually decoding.
       _player.stream.playlist.listen((value) {
         if (value.index != _index && value.index < _queue.length) {
+          if (_sleepAtEndOfTrack) {
+            _sleepAtEndOfTrack = false;
+            _player.pause();
+          } else if (_sleepAfterTracks > 0) {
+            _sleepAfterTracks--;
+            if (_sleepAfterTracks == 0) _player.pause();
+          }
           _index = value.index;
           _onTrackChanged();
         }
@@ -100,10 +141,13 @@ class PlayerService extends ChangeNotifier {
     if (songs.isEmpty) return;
     _queue = songs;
     _index = _settings.lastQueueIndex.clamp(0, songs.length - 1);
-    await _player.open(_playlist(), play: false);
-    final resume = Duration(milliseconds: _settings.lastPositionMs);
-    if (resume > Duration.zero) await _player.seek(resume);
-    notifyListeners();
+    try {
+      await _player.open(_playlist(), play: false);
+      final resume = Duration(milliseconds: _settings.lastPositionMs);
+      if (resume > Duration.zero) await _player.seek(resume);
+    } finally {
+      notifyListeners();
+    }
   }
 
   Playlist _playlist() => Playlist(
@@ -117,9 +161,14 @@ class PlayerService extends ChangeNotifier {
     if (songs.isEmpty) return;
     _queue = List.unmodifiable(songs);
     _index = startIndex.clamp(0, songs.length - 1);
-    await _player.open(_playlist());
-    _onTrackChanged();
-    notifyListeners();
+    // Notify even when the load fails — a missing or unreadable file must not
+    // leave the UI showing the previous track.
+    try {
+      await _player.open(_playlist());
+    } finally {
+      _onTrackChanged();
+      notifyListeners();
+    }
   }
 
   Future<void> playSong(Song song) => playQueue([song]);
@@ -149,14 +198,108 @@ class PlayerService extends ChangeNotifier {
     await _player.jump(index);
   }
 
-  Future<void> seek(Duration position) => _player.seek(position);
+  Future<void> seek(Duration position) {
+    // Move the thumb immediately; mpv confirms a frame or two later.
+    _position = position;
+    positionListenable.value = position;
+    return _player.seek(position);
+  }
 
   Future<void> seekFraction(double fraction) =>
       seek(Duration(milliseconds: (duration.inMilliseconds * fraction).round()));
 
   Future<void> setVolume(double value) async {
     _settings.volume = value;
-    await _player.setVolume(value);
+    await _applyVolume();
+    notifyListeners();
+  }
+
+  Future<void> _applyVolume() =>
+      _player.setVolume((_settings.volume * _fadeFactor).clamp(0, 100));
+
+  /// Ported from the `TransitionSettings` handling in the Android player.
+  ///
+  /// ponytail: single-decoder fade only — mpv owns one playlist, so the head
+  /// and tail of adjacent tracks cannot literally overlap. OVERLAP and SMOOTH
+  /// therefore render as a fade-out/fade-in pair over the same duration; true
+  /// overlap needs the second player planned for phase 7.
+  void _updateTransitionFade() {
+    final settings = _settings.transition;
+    if (!settings.enabled || !_playing) {
+      if (_fadeFactor != 1) {
+        _fadeFactor = 1;
+        _applyVolume();
+      }
+      return;
+    }
+    final total = duration.inMilliseconds;
+    if (total <= 0) return;
+    final fade = settings.durationMs.clamp(1, total ~/ 2);
+    final elapsed = _position.inMilliseconds;
+    final remaining = total - elapsed;
+
+    var factor = 1.0;
+    if (elapsed < fade && _index > 0) {
+      // Only fade in when we arrived from another track, not on a fresh start.
+      factor = settings.curveIn.apply(elapsed / fade);
+    } else if (remaining < fade && _index < _queue.length - 1) {
+      factor = settings.curveOut.apply(remaining / fade);
+    }
+    if ((factor - _fadeFactor).abs() < 0.01) return;
+    _fadeFactor = factor;
+    _applyVolume();
+  }
+
+  // ------------------------------------------------------------ sleep timer
+
+  /// Ported from `TimerOptionsBottomSheet`.
+  void setSleepTimer(Duration duration) {
+    cancelSleepTimer();
+    _sleepTimerEndsAt = DateTime.now().add(duration);
+    _sleepTimer = Timer(duration, _onSleepTimerFired);
+    notifyListeners();
+  }
+
+  void setSleepTimerAtEndOfTrack() {
+    cancelSleepTimer();
+    _sleepAtEndOfTrack = true;
+    notifyListeners();
+  }
+
+  /// Stop once [count] more tracks have finished.
+  void setSleepTimerAfterTracks(int count) {
+    cancelSleepTimer();
+    if (count <= 0) return;
+    _sleepAfterTracks = count;
+    notifyListeners();
+  }
+
+  void cancelSleepTimer() {
+    _sleepTimer?.cancel();
+    _sleepTimer = null;
+    _sleepTimerEndsAt = null;
+    _sleepAtEndOfTrack = false;
+    _sleepAfterTracks = 0;
+    if (_fadeFactor != 1) {
+      _fadeFactor = 1;
+      _applyVolume();
+    }
+    notifyListeners();
+  }
+
+  Future<void> _onSleepTimerFired() async {
+    _sleepTimer = null;
+    _sleepTimerEndsAt = null;
+    // Ease out over 5s rather than cutting the audio dead.
+    const steps = 25;
+    for (var i = steps; i >= 0; i--) {
+      _fadeFactor = i / steps;
+      await _applyVolume();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    await _player.pause();
+    _fadeFactor = 1;
+    await _applyVolume();
     notifyListeners();
   }
 
@@ -247,9 +390,12 @@ class PlayerService extends ChangeNotifier {
     final wasPlaying = _playing;
     _queue = List.unmodifiable(songs);
     _index = index.clamp(0, songs.length - 1);
-    await _player.open(_playlist(), play: wasPlaying);
-    if (resume && at > Duration.zero) await _player.seek(at);
-    notifyListeners();
+    try {
+      await _player.open(_playlist(), play: wasPlaying);
+      if (resume && at > Duration.zero) await _player.seek(at);
+    } finally {
+      notifyListeners();
+    }
   }
 
   // ------------------------------------------------------------- favourites
@@ -286,6 +432,8 @@ class PlayerService extends ChangeNotifier {
       _index,
       _position.inMilliseconds,
     );
+    _sleepTimer?.cancel();
+    positionListenable.dispose();
     for (final sub in _subs) {
       sub.cancel();
     }

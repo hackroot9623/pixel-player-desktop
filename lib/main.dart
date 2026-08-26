@@ -79,15 +79,21 @@ class _PixelPlayAppState extends ConsumerState<PixelPlayApp> {
       title: 'PixelPlayer',
       debugShowCheckedModeBanner: false,
       themeMode: settings.themeMode,
+      // Default is 200 ms of linear cross-fade; a shorter ease reads as the
+      // colours snapping to the new track rather than drifting into it.
+      themeAnimationDuration: const Duration(milliseconds: 240),
+      themeAnimationCurve: Curves.easeOutCubic,
       theme: buildTheme(
         brightness: Brightness.light,
         schemeOverride: scheme?.$1,
         seed: settings.seedColor,
+        variant: settings.paletteStyle,
       ),
       darkTheme: buildTheme(
         brightness: Brightness.dark,
         schemeOverride: scheme?.$2,
         seed: settings.seedColor,
+        variant: settings.paletteStyle,
       ),
       home: _setupDone
           ? const AppShell()

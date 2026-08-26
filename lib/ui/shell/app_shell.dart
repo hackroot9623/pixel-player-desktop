@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/providers.dart';
@@ -39,10 +40,53 @@ class _AppShellState extends ConsumerState<AppShell> {
     setState(() => _index = index);
   }
 
+  /// Desktop keyboard control. Media keys themselves need MPRIS, which is
+  /// phase 7; these are the in-window equivalents.
+  Map<ShortcutActivator, VoidCallback> _shortcuts() {
+    final player = ref.read(playerProvider);
+    void nudge(int seconds) => player.seek(
+      Duration(
+        milliseconds: (player.position.inMilliseconds + seconds * 1000).clamp(
+          0,
+          player.duration.inMilliseconds,
+        ),
+      ),
+    );
+    return {
+      const SingleActivator(LogicalKeyboardKey.space): player.toggle,
+      const SingleActivator(LogicalKeyboardKey.mediaPlay): player.toggle,
+      const SingleActivator(LogicalKeyboardKey.arrowRight): () => nudge(5),
+      const SingleActivator(LogicalKeyboardKey.arrowLeft): () => nudge(-5),
+      const SingleActivator(LogicalKeyboardKey.arrowRight, shift: true):
+          player.next,
+      const SingleActivator(LogicalKeyboardKey.arrowLeft, shift: true):
+          player.previous,
+      const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+          player.setVolume((player.volume + 5).clamp(0, 100)),
+      const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+          player.setVolume((player.volume - 5).clamp(0, 100)),
+      const SingleActivator(LogicalKeyboardKey.keyS): player.toggleShuffle,
+      const SingleActivator(LogicalKeyboardKey.keyR): player.cycleRepeatMode,
+      const SingleActivator(LogicalKeyboardKey.keyL): () {
+        final song = player.current;
+        if (song != null) {
+          ref.read(libraryProvider.notifier).toggleFavorite(song);
+        }
+      },
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final radius = settings.navBarCornerRadius;
+    return CallbackShortcuts(
+      bindings: _shortcuts(),
+      child: Focus(autofocus: true, child: _body(radius)),
+    );
+  }
+
+  Widget _body(double radius) {
     return Scaffold(
       body: Row(
         children: [

@@ -7,6 +7,7 @@ import 'screens/folder_screen.dart';
 import 'screens/genre_detail_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/settings_screens.dart';
 import 'screens/stats_screen.dart';
 
 /// Replaces `presentation/navigation/AppNavigation.kt`. Detail screens are
@@ -35,3 +36,15 @@ void openSettings(BuildContext context) =>
     _push(context, const SettingsScreen());
 
 void openStats(BuildContext context) => _push(context, const StatsScreen());
+
+void openPaletteStyle(BuildContext context) =>
+    _push(context, const PaletteStyleScreen());
+
+void openNavCornerRadius(BuildContext context) =>
+    _push(context, const NavCornerRadiusScreen());
+
+void openTransitionEditor(BuildContext context) =>
+    _push(context, const TransitionEditorScreen());
+
+void openPlayerLook(BuildContext context) =>
+    _push(context, const PlayerLookScreen());

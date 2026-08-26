@@ -32,12 +32,12 @@ final artworkDirProvider = Provider<String>(
 final playerProvider = ChangeNotifierProvider<PlayerService>((ref) {
   // `read`, not `watch`: Settings is a ChangeNotifier, and watching it would
   // tear down and recreate the whole player on every preference write.
-  final service = PlayerService(
+  // ChangeNotifierProvider disposes the notifier itself, so registering
+  // `service.dispose` here as well would dispose it twice.
+  return PlayerService(
     ref.watch(databaseProvider),
     ref.read(settingsProvider),
   );
-  ref.onDispose(service.dispose);
-  return service;
 });
 
 // ---------------------------------------------------------------- library
@@ -347,23 +347,46 @@ final libraryTabProvider = StateProvider<LibraryTabId>(
 /// Album-art driven `ColorScheme`, the desktop stand-in for the Android app's
 /// `ColorSchemePair` extraction. `ColorScheme.fromImageProvider` runs the same
 /// Material color quantiser that Compose's dynamic color uses.
+/// Quantising artwork is expensive (tens of ms), so results are memoised by
+/// artwork path + palette style. Without this, revisiting a track re-ran the
+/// whole extraction and the theme visibly lagged behind the music.
+final _schemeCache = <String, (ColorScheme, ColorScheme)>{};
+
 final albumArtSchemeProvider = FutureProvider<(ColorScheme, ColorScheme)?>((
   ref,
 ) async {
   final settings = ref.watch(settingsProvider);
   if (!settings.useAlbumArtColors) return null;
-  // The album-art scheme genuinely must follow settings changes, so this one
-  // does watch.
 
-  final artPath = ref.watch(playerProvider).current?.albumArtPath;
-  if (artPath == null || !File(artPath).existsSync()) return null;
+  // `select` is load-bearing: watching the whole player re-ran this provider on
+  // every position tick, so the extraction never finished before being thrown
+  // away and the colours arrived long after the track changed.
+  final artPath = ref.watch(
+    playerProvider.select((player) => player.current?.albumArtPath),
+  );
+  if (artPath == null) return null;
+
+  final variant = settings.paletteStyle;
+  final key = '$artPath|${variant.name}';
+  final cached = _schemeCache[key];
+  if (cached != null) return cached;
+
+  if (!File(artPath).existsSync()) return null;
   final image = FileImage(File(artPath));
-  final light = await ColorScheme.fromImageProvider(provider: image);
+  final light = await ColorScheme.fromImageProvider(
+    provider: image,
+    dynamicSchemeVariant: variant,
+  );
   final dark = await ColorScheme.fromImageProvider(
     provider: image,
     brightness: Brightness.dark,
+    dynamicSchemeVariant: variant,
   );
-  return (light, dark);
+  final result = (light, dark);
+  // Bounded so a long listening session cannot grow it without limit.
+  if (_schemeCache.length > 64) _schemeCache.clear();
+  _schemeCache[key] = result;
+  return result;
 });
 
 // ------------------------------------------------------------------- stats

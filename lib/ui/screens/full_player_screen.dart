@@ -1,38 +1,40 @@
-import 'package:flutter/material.dart' hide RepeatMode;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../player/player_service.dart';
+import '../../data/models/models.dart';
 import '../../state/providers.dart';
-import '../components/album_art.dart';
+import '../components/album_carousel.dart';
 import '../components/common.dart';
-import '../components/library_widgets.dart';
+import '../components/playback_controls.dart';
 import '../components/queue_panel.dart';
+import '../components/sleep_timer_sheet.dart';
+import '../components/song_info_sheet.dart';
 import '../components/wavy_slider.dart';
 import '../navigation.dart';
 import '../theme/shapes.dart';
 
 void openFullPlayer(BuildContext context) =>
     Navigator.of(context, rootNavigator: true).push(
-  PageRouteBuilder<void>(
-    transitionDuration: const Duration(milliseconds: 320),
-    reverseTransitionDuration: const Duration(milliseconds: 240),
-    pageBuilder: (context, animation, _) => FadeTransition(
-      opacity: animation,
-      child: SlideTransition(
-        position: Tween(
-          begin: const Offset(0, 0.06),
-          end: Offset.zero,
-        ).animate(
-          CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+      PageRouteBuilder<void>(
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 240),
+        pageBuilder: (context, animation, _) => FadeTransition(
+          opacity: animation,
+          child: SlideTransition(
+            position: Tween(
+              begin: const Offset(0, 0.06),
+              end: Offset.zero,
+            ).animate(
+              CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+            ),
+            child: const FullPlayerScreen(),
+          ),
         ),
-        child: const FullPlayerScreen(),
       ),
-    ),
-  ),
-);
+    );
 
 /// Port of `presentation/components/player/FullPlayerContent`, laid out for a
-/// wide window: artwork and transport on the left, queue docked on the right.
+/// wide window: artwork carousel and transport on the left, queue docked right.
 class FullPlayerScreen extends ConsumerWidget {
   const FullPlayerScreen({super.key});
 
@@ -66,27 +68,7 @@ class FullPlayerScreen extends ConsumerWidget {
         child: SafeArea(
           child: Column(
             children: [
-              Row(
-                children: [
-                  IconButton(
-                    tooltip: 'Close',
-                    icon: const Icon(Icons.keyboard_arrow_down_rounded),
-                    onPressed: () => Navigator.of(context).pop(),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'Now playing',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
-                  ),
-                  SongMenuButton(song: song),
-                  const SizedBox(width: 8),
-                ],
-              ),
+              _TopBar(song: song),
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, constraints) {
@@ -118,6 +100,56 @@ class FullPlayerScreen extends ConsumerWidget {
   }
 }
 
+class _TopBar extends ConsumerWidget {
+  const _TopBar({required this.song});
+
+  final Song song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final player = ref.watch(playerProvider);
+    final timerActive = player.sleepTimerActive;
+    final remaining = player.sleepTimerRemaining;
+    return Row(
+      children: [
+        IconButton(
+          tooltip: 'Close',
+          icon: const Icon(Icons.keyboard_arrow_down_rounded),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
+        Expanded(
+          child: Center(
+            child: Text(
+              'Now playing',
+              style: theme.textTheme.titleSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+        ),
+        IconButton(
+          tooltip: !timerActive
+              ? 'Sleep timer'
+              : 'Sleep timer: ${remaining == null ? 'on' : formatDuration(remaining)}',
+          isSelected: timerActive,
+          icon: Icon(
+            timerActive ? Icons.bedtime_rounded : Icons.bedtime_outlined,
+            color: timerActive ? theme.colorScheme.primary : null,
+          ),
+          onPressed: () => showSleepTimerSheet(context),
+        ),
+        IconButton(
+          tooltip: 'Song info',
+          icon: const Icon(Icons.info_outline_rounded),
+          onPressed: () => showSongInfoSheet(context, song),
+        ),
+        const SizedBox(width: 8),
+      ],
+    );
+  }
+}
+
 class _NowPlayingPane extends ConsumerWidget {
   const _NowPlayingPane({required this.compact});
 
@@ -126,31 +158,27 @@ class _NowPlayingPane extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final player = ref.watch(playerProvider);
+    final settings = ref.watch(settingsProvider);
     final song = player.current!;
     final theme = Theme.of(context);
+    final fileInfo = _audioMetaLabel(song);
 
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Column(
             children: [
               LayoutBuilder(
-                builder: (context, constraints) {
-                  final side = (compact ? 320.0 : 420.0).clamp(
-                    180.0,
-                    constraints.maxWidth,
-                  );
-                  return AlbumArt(
-                    path: song.albumArtPath,
-                    size: side,
-                    radius: 32,
-                    heroTag: 'now-playing-art',
-                  );
-                },
+                builder: (context, constraints) => AlbumCarousel(
+                  height:
+                      constraints.maxWidth *
+                      settings.carouselStyle.heightFactor *
+                      (compact ? 0.78 : 1.0),
+                ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
               Row(
                 children: [
                   Expanded(
@@ -191,106 +219,54 @@ class _NowPlayingPane extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  IconButton.filledTonal(
-                    tooltip: song.isFavorite ? 'Unlike' : 'Like',
-                    icon: Icon(
-                      song.isFavorite
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                    ),
-                    onPressed: () =>
-                        ref.read(libraryProvider.notifier).toggleFavorite(song),
-                  ),
                 ],
-              ),
-              const SizedBox(height: 20),
-              WavySlider(
-                value: player.progress,
-                animate: player.playing,
-                onChanged: (_) {},
-                onChangeEnd: player.seekFraction,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      formatDuration(player.position),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    Text(
-                      formatDuration(player.duration),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  IconButton(
-                    tooltip: 'Shuffle',
-                    isSelected: player.shuffle,
-                    icon: const Icon(Icons.shuffle_rounded),
-                    selectedIcon: Icon(
-                      Icons.shuffle_rounded,
-                      color: theme.colorScheme.primary,
-                    ),
-                    onPressed: player.toggleShuffle,
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Previous',
-                    iconSize: 34,
-                    icon: const Icon(Icons.skip_previous_rounded),
-                    onPressed: player.previous,
-                  ),
-                  const SizedBox(width: 12),
-                  SizedBox(
-                    width: 76,
-                    height: 76,
-                    child: FloatingActionButton.large(
-                      elevation: 0,
-                      shape: const CircleBorder(),
-                      onPressed: player.toggle,
-                      child: Icon(
-                        player.playing
-                            ? Icons.pause_rounded
-                            : Icons.play_arrow_rounded,
-                        size: 38,
+              // Only this subtree follows the position ticks.
+              PositionBuilder(
+                builder: (context, position) {
+                  final total = player.duration.inMilliseconds;
+                  return Column(
+                    children: [
+                      WavySlider(
+                        value: total <= 0
+                            ? 0
+                            : (position.inMilliseconds / total).clamp(0.0, 1.0),
+                        animate: player.playing,
+                        onChangeEnd: player.seekFraction,
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  IconButton(
-                    tooltip: 'Next',
-                    iconSize: 34,
-                    icon: const Icon(Icons.skip_next_rounded),
-                    onPressed: player.next,
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: switch (player.repeatMode) {
-                      RepeatMode.off => 'Repeat off',
-                      RepeatMode.all => 'Repeat all',
-                      RepeatMode.one => 'Repeat one',
-                    },
-                    isSelected: player.repeatMode != RepeatMode.off,
-                    icon: Icon(
-                      player.repeatMode == RepeatMode.one
-                          ? Icons.repeat_one_rounded
-                          : Icons.repeat_rounded,
-                      color: player.repeatMode == RepeatMode.off
-                          ? null
-                          : theme.colorScheme.primary,
-                    ),
-                    onPressed: player.cycleRepeatMode,
-                  ),
-                ],
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: Row(
+                          children: [
+                            Text(
+                              formatDuration(position),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const Spacer(),
+                            // `showPlayerFileInfo` — format / bitrate / rate.
+                            if (settings.showPlayerFileInfo && fileInfo != null)
+                              Text(
+                                fileInfo,
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            const Spacer(),
+                            Text(
+                              formatDuration(player.duration),
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 20),
+              const TransportBar(),
+              const SizedBox(height: 12),
               if (compact)
                 TextButton.icon(
                   onPressed: () => showQueuePanel(context),
@@ -303,4 +279,17 @@ class _NowPlayingPane extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Port of `formatAudioMetaLabel`.
+String? _audioMetaLabel(Song song) {
+  final parts = <String>[
+    if (song.mimeType != null)
+      song.mimeType!.split('/').last.toUpperCase().replaceAll('MPEG', 'MP3'),
+    if (song.bitrate != null && song.bitrate! > 0)
+      '${(song.bitrate! / 1000).round()} kbps',
+    if (song.sampleRate != null && song.sampleRate! > 0)
+      '${(song.sampleRate! / 1000).toStringAsFixed(1)} kHz',
+  ];
+  return parts.isEmpty ? null : parts.join(' · ');
 }

@@ -13,11 +13,16 @@ ThemeData buildTheme({
   required Brightness brightness,
   ColorScheme? schemeOverride,
   Color? seed,
+  DynamicSchemeVariant variant = DynamicSchemeVariant.tonalSpot,
 }) {
   final scheme =
       schemeOverride ??
       (seed != null
-          ? ColorScheme.fromSeed(seedColor: seed, brightness: brightness)
+          ? ColorScheme.fromSeed(
+              seedColor: seed,
+              brightness: brightness,
+              dynamicSchemeVariant: variant,
+            )
           : (brightness == Brightness.dark
                 ? darkColorScheme
                 : lightColorScheme));
@@ -31,7 +36,10 @@ ThemeData buildTheme({
       bodyColor: scheme.onSurface,
       displayColor: scheme.onSurface,
     ),
-    splashFactory: InkSparkle.splashFactory,
+    // InkSparkle needs the `shaders/ink_sparkle.frag` asset, which the Linux
+    // embedder does not ship — it throws on the first splash. InkRipple is the
+    // closest thing that works everywhere.
+    splashFactory: InkRipple.splashFactory,
     cardTheme: CardThemeData(
       shape: largeShape,
       clipBehavior: Clip.antiAlias,

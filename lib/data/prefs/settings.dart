@@ -4,7 +4,34 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/sort_option.dart';
+import '../models/transition.dart';
 import '../scanner/library_scanner.dart';
+
+/// How much of the neighbouring artwork peeks in beside the current track in
+/// the full player's carousel. Ported from `CarouselStyle` in the Android
+/// player settings.
+enum CarouselStyle {
+  noPeek('No peek', [1.0]),
+  onePeek('One peek', [7.0, 1.0]),
+  twoPeek('Two peek', [1.0, 7.0, 1.0]);
+
+  const CarouselStyle(this.label, this.flexWeights);
+
+  final String label;
+
+  /// Weights handed to `CarouselView.weighted`, which is Flutter's
+  /// implementation of the same M3 multi-browse layout the Kotlin
+  /// `RoundedHorizontalMultiBrowseCarousel` reimplements.
+  final List<double> flexWeights;
+
+  /// Carousel height as a fraction of its width, matching
+  /// `FullPlayerAlbumCoverSection`.
+  double get heightFactor => switch (this) {
+    CarouselStyle.noPeek => 1.0,
+    CarouselStyle.onePeek => 0.8,
+    CarouselStyle.twoPeek => 0.6,
+  };
+}
 
 /// Replaces the 17 DataStore files under `data/preferences/`. One flat store
 /// with typed accessors; every setter notifies so Riverpod can rebuild.
@@ -35,6 +62,14 @@ class Settings extends ChangeNotifier {
   Color get seedColor => Color(_prefs.getInt('seed_color') ?? 0xFF6C4FF5);
   set seedColor(Color value) => _set('seed_color', value.toARGB32());
 
+  /// `PaletteStyleSettingsScreen` — which Material tonal-palette algorithm the
+  /// seed (or album art) colour is expanded through.
+  DynamicSchemeVariant get paletteStyle =>
+      DynamicSchemeVariant.values[_prefs.getInt('palette_style') ??
+          DynamicSchemeVariant.tonalSpot.index];
+  set paletteStyle(DynamicSchemeVariant value) =>
+      _set('palette_style', value.index);
+
   /// `NavBarCornerRadiusScreen`.
   double get navBarCornerRadius =>
       _prefs.getDouble('nav_bar_corner_radius') ?? 28;
@@ -43,6 +78,18 @@ class Settings extends ChangeNotifier {
 
   bool get showScrollbar => _prefs.getBool('show_scrollbar') ?? true;
   set showScrollbar(bool value) => _set('show_scrollbar', value);
+
+  /// `CarouselStyle` in the player settings: how much of the neighbouring
+  /// artwork peeks in beside the current track.
+  CarouselStyle get carouselStyle =>
+      CarouselStyle.values[_prefs.getInt('carousel_style') ??
+          CarouselStyle.onePeek.index];
+  set carouselStyle(CarouselStyle value) => _set('carousel_style', value.index);
+
+  /// `showPlayerFileInfo` — the format/bitrate/sample-rate line under the seek
+  /// bar in the full player.
+  bool get showPlayerFileInfo => _prefs.getBool('player_file_info') ?? true;
+  set showPlayerFileInfo(bool value) => _set('player_file_info', value);
 
   // ---------------------------------------------------------------- library
 
@@ -78,9 +125,11 @@ class Settings extends ChangeNotifier {
   int get repeatMode => _prefs.getInt('repeat_mode') ?? 0;
   set repeatMode(int value) => _set('repeat_mode', value % 3);
 
-  /// `EditTransitionScreen` — crossfade duration between tracks, in ms.
-  int get crossfadeMs => _prefs.getInt('crossfade_ms') ?? 0;
-  set crossfadeMs(int value) => _set('crossfade_ms', value.clamp(0, 12000));
+  /// `EditTransitionScreen` — the global transition between tracks.
+  TransitionSettings get transition =>
+      TransitionSettings.fromJson(jsonMap('transition'));
+  set transition(TransitionSettings value) =>
+      setJsonMap('transition', value.toJson());
 
   /// Restored on launch, the desktop equivalent of `PlaybackQueueSnapshot`.
   List<String> get lastQueue => _prefs.getStringList('last_queue') ?? const [];

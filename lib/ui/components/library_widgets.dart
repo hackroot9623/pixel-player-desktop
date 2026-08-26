@@ -8,6 +8,8 @@ import '../navigation.dart';
 import '../theme/shapes.dart';
 import 'album_art.dart';
 import 'common.dart';
+import 'multi_select.dart';
+import 'song_info_sheet.dart';
 
 /// Port of `subcomps/EnhancedSongListItem` + `LibraryPlaybackAwareSongItem`.
 class SongTile extends ConsumerWidget {
@@ -19,6 +21,7 @@ class SongTile extends ConsumerWidget {
     this.showArtwork = true,
     this.dense = false,
     this.leadingIndex,
+    this.selectable = true,
   });
 
   final Song song;
@@ -28,20 +31,43 @@ class SongTile extends ConsumerWidget {
   final bool dense;
   final int? leadingIndex;
 
+  /// Long-press / right-click enters multi-select. Off for the queue and other
+  /// lists where selection makes no sense.
+  final bool selectable;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final player = ref.watch(playerProvider);
-    final isCurrent = player.current?.id == song.id;
+    // Narrow subscriptions: a whole-service watch rebuilt every visible row on
+    // every position tick.
+    final isCurrent = ref.watch(
+      playerProvider.select((player) => player.current?.id == song.id),
+    );
+    final isPlaying = ref.watch(
+      playerProvider.select((player) => player.playing),
+    );
+    final selection = selectable
+        ? ref.watch(selectionProvider)
+        : const SelectionState();
+    final isSelected = selection.ids.contains(song.id);
+    final selectionNotifier = ref.read(selectionProvider.notifier);
     return ListTile(
       dense: dense,
       shape: mediumShape,
-      selected: isCurrent,
-      selectedTileColor: theme.colorScheme.secondaryContainer.withValues(
-        alpha: 0.45,
-      ),
+      selected: isCurrent || isSelected,
+      selectedTileColor: (isSelected
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.secondaryContainer)
+          .withValues(alpha: 0.45),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-      leading: showArtwork
+      // Selection mode swaps the artwork for a checkbox, the way the Android
+      // list does while `MultiSelectionBottomSheet` is up.
+      leading: selection.active
+          ? Checkbox(
+              value: isSelected,
+              onChanged: (_) => selectionNotifier.toggle(song.id),
+            )
+          : showArtwork
           ? AlbumArt(path: song.albumArtPath, size: dense ? 40 : 48)
           : (leadingIndex == null
                 ? null
@@ -49,7 +75,7 @@ class SongTile extends ConsumerWidget {
                     width: 28,
                     child: Center(
                       child: isCurrent
-                          ? PlayingEqIcon(animate: player.playing)
+                          ? PlayingEqIcon(animate: isPlaying)
                           : Text(
                               '${leadingIndex! + 1}',
                               style: theme.textTheme.bodyMedium?.copyWith(
@@ -96,7 +122,10 @@ class SongTile extends ConsumerWidget {
               SongMenuButton(song: song),
             ],
           ),
-      onTap: onTap ?? () => ref.read(playerProvider).playSong(song),
+      onTap: selection.active
+          ? () => selectionNotifier.toggle(song.id)
+          : (onTap ?? () => ref.read(playerProvider).playSong(song)),
+      onLongPress: selectable ? () => selectionNotifier.toggle(song.id) : null,
     );
   }
 }
@@ -158,73 +187,10 @@ class SongMenuButton extends ConsumerWidget {
       ),
       MenuItemButton(
         leadingIcon: const Icon(Icons.info_outline_rounded),
-        onPressed: () => showSongInfoDialog(context, song),
+        onPressed: () => showSongInfoSheet(context, song),
         child: const Text('Song info'),
       ),
     ],
-  );
-}
-
-void showSongInfoDialog(BuildContext context, Song song) {
-  final rows = <(String, String)>[
-    ('Title', song.title),
-    ('Artists', song.displayArtist),
-    ('Album', song.album),
-    if (song.albumArtist != null) ('Album artist', song.albumArtist!),
-    if (song.genre != null) ('Genre', song.genre!),
-    if (song.year > 0) ('Year', '${song.year}'),
-    if (song.trackNumber > 0) ('Track', '${song.trackNumber}'),
-    if (song.discNumber != null) ('Disc', '${song.discNumber}'),
-    ('Duration', formatDuration(song.durationValue)),
-    if (song.mimeType != null) ('Format', song.mimeType!),
-    if (song.bitrate != null)
-      ('Bitrate', '${(song.bitrate! / 1000).round()} kbps'),
-    if (song.sampleRate != null) ('Sample rate', '${song.sampleRate} Hz'),
-    ('Path', song.path),
-  ];
-  showDialog<void>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Song info'),
-      content: SizedBox(
-        width: 460,
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final (label, value) in rows)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 110,
-                        child: Text(
-                          label,
-                          style: Theme.of(context).textTheme.labelMedium
-                              ?.copyWith(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurfaceVariant,
-                              ),
-                        ),
-                      ),
-                      Expanded(child: SelectableText(value)),
-                    ],
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Close'),
-        ),
-      ],
-    ),
   );
 }
 

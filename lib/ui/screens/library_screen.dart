@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/models/models.dart';
 import '../../data/models/sort_option.dart';
 import '../../state/providers.dart';
 import '../components/common.dart';
+import '../components/expressive_scrollbar.dart';
 import '../components/library_widgets.dart';
+import '../components/multi_select.dart';
 import '../navigation.dart';
 
 /// Port of `presentation/screens/LibraryScreen` and its per-tab files
@@ -104,7 +107,6 @@ class _TabContent extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final library = ref.watch(libraryProvider);
     final sort = ref.watch(settingsProvider).sortFor(tab);
-    final player = ref.read(playerProvider);
 
     switch (tab) {
       case LibraryTabId.songs:
@@ -126,14 +128,7 @@ class _TabContent extends ConsumerWidget {
                 : 'Add a music folder in settings.',
           );
         }
-        return ListView.builder(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-          itemCount: songs.length,
-          itemBuilder: (context, i) => SongTile(
-            song: songs[i],
-            onTap: () => player.playQueue(songs, startIndex: i),
-          ),
-        );
+        return _SongList(songs: songs);
 
       case LibraryTabId.albums:
         final albums = sortAlbums(library.albums, sort);
@@ -214,6 +209,65 @@ class _TabContent extends ConsumerWidget {
       ),
       itemCount: count,
       itemBuilder: (context, i) => builder(i),
+    );
+  }
+}
+
+
+/// Songs and Liked share this list: an A-Z jump scrollbar over the rows and the
+/// multi-select action bar floating on top of it.
+class _SongList extends ConsumerStatefulWidget {
+  const _SongList({required this.songs});
+
+  final List<Song> songs;
+
+  @override
+  ConsumerState<_SongList> createState() => _SongListState();
+}
+
+class _SongListState extends ConsumerState<_SongList> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final player = ref.read(playerProvider);
+    final songs = widget.songs;
+    return Stack(
+      children: [
+        ExpressiveScrollbar(
+          controller: _controller,
+          enabled: ref.watch(settingsProvider).showScrollbar,
+          // The bubble shows the initial of whatever row the drag is over,
+          // which is what makes the bar useful on a long library.
+          labelForOffset: (fraction) {
+            if (songs.isEmpty) return null;
+            final index = (fraction * (songs.length - 1)).round();
+            final title = songs[index].title.trim();
+            return title.isEmpty ? null : title[0].toUpperCase();
+          },
+          child: ListView.builder(
+            controller: _controller,
+            padding: const EdgeInsets.fromLTRB(12, 8, 40, 96),
+            itemCount: songs.length,
+            itemBuilder: (context, i) => SongTile(
+              song: songs[i],
+              onTap: () => player.playQueue(songs, startIndex: i),
+            ),
+          ),
+        ),
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: SelectionActionBar(allSongs: songs),
+        ),
+      ],
     );
   }
 }
