@@ -8,6 +8,7 @@ import 'package:window_manager/window_manager.dart';
 import 'data/db/database.dart';
 import 'data/prefs/settings.dart';
 import 'state/providers.dart';
+import 'ui/components/window_controls.dart';
 import 'ui/screens/setup_screen.dart';
 import 'ui/shell/app_shell.dart';
 import 'ui/theme/app_theme.dart';
@@ -30,6 +31,10 @@ Future<void> main() async {
 
   final supportDir = await getApplicationSupportDirectory();
   final settings = await Settings.load();
+  // Before the first frame, so the window never flashes the wrong decorations.
+  await applyWindowDecorations(
+    useCustomTitleBar: settings.useCustomTitleBar,
+  );
   final db = await MusicDatabase.open(supportDir.path);
   final artworkDir = p.join(supportDir.path, 'artwork');
 

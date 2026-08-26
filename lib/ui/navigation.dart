@@ -48,3 +48,6 @@ void openTransitionEditor(BuildContext context) =>
 
 void openPlayerLook(BuildContext context) =>
     _push(context, const PlayerLookScreen());
+
+void openWindowSettings(BuildContext context) =>
+    _push(context, const WindowScreen());

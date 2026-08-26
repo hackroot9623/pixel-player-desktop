@@ -103,15 +103,13 @@ class LyricsRepository {
   }
 
   /// Backs the "fetch lyrics" dialog (`FetchLyricsDialog`).
-  Future<List<LrcLibResult>> search({
-    String? query,
-    Song? song,
-  }) => _client.search(
-    query: query,
-    trackName: song == null ? null : song.title,
-    artistName: song == null ? null : song.primaryArtist.name,
-    albumName: song?.album,
-  );
+  Future<List<LrcLibResult>> search({String? query, Song? song}) =>
+      _client.search(
+        query: query,
+        trackName: song?.title,
+        artistName: song?.primaryArtist.name,
+        albumName: song?.album,
+      );
 
   /// Applies a search result the user picked.
   Lyrics? applyResult(Song song, LrcLibResult result) {

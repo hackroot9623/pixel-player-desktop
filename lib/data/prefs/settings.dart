@@ -38,6 +38,29 @@ enum CarouselStyle {
   };
 }
 
+/// Which corner of the client-side title bar holds the window controls.
+/// The two placements people actually expect: GNOME/Windows on the right,
+/// macOS on the left.
+enum WindowControlsPlacement {
+  topRight('Right'),
+  topLeft('Left');
+
+  const WindowControlsPlacement(this.label);
+
+  final String label;
+}
+
+/// How the window controls are drawn.
+enum WindowControlsStyle {
+  glyphs('Glyphs', 'Minimise, maximise and close icons'),
+  dots('Traffic lights', 'Three coloured dots, macOS style');
+
+  const WindowControlsStyle(this.label, this.description);
+
+  final String label;
+  final String description;
+}
+
 /// Replaces the 17 DataStore files under `data/preferences/`. One flat store
 /// with typed accessors; every setter notifies so Riverpod can rebuild.
 class Settings extends ChangeNotifier {
@@ -83,6 +106,26 @@ class Settings extends ChangeNotifier {
 
   bool get showScrollbar => _prefs.getBool('show_scrollbar') ?? true;
   set showScrollbar(bool value) => _set('show_scrollbar', value);
+
+  // ----------------------------------------------------------------- window
+
+  /// Hide the system title bar and draw our own, so the UI reaches the window
+  /// edges. Off by default: the desktop's own decorations are the safe default,
+  /// and on an unusual compositor they are the only ones that work.
+  bool get useCustomTitleBar => _prefs.getBool('custom_title_bar') ?? false;
+  set useCustomTitleBar(bool value) => _set('custom_title_bar', value);
+
+  WindowControlsPlacement get windowControlsPlacement =>
+      WindowControlsPlacement.values[_prefs.getInt('window_controls_side') ??
+          WindowControlsPlacement.topRight.index];
+  set windowControlsPlacement(WindowControlsPlacement value) =>
+      _set('window_controls_side', value.index);
+
+  WindowControlsStyle get windowControlsStyle =>
+      WindowControlsStyle.values[_prefs.getInt('window_controls_style') ??
+          WindowControlsStyle.glyphs.index];
+  set windowControlsStyle(WindowControlsStyle value) =>
+      _set('window_controls_style', value.index);
 
   /// `CarouselStyle` in the player settings: how much of the neighbouring
   /// artwork peeks in beside the current track.

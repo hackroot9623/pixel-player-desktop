@@ -81,6 +81,13 @@ AI playlists (Gemini / OpenAI / Deepseek), QuickFill, Mashup, recently played.
 Jellyfin, Navidrome, Google Drive, Telegram, NetEase, QQMusic — dashboards + streaming
 (`data/stream`, `data/{jellyfin,navidrome,gdrive,telegram,netease,qqmusic}`), Accounts screen.
 
+### Desktop-only surface (no Android counterpart)
+Client-side window decorations: a setting to hide the system title bar and draw
+our own close / minimise / maximise controls, with the button cluster on either
+side and in either convention (glyphs or traffic lights). Includes the drag
+region, double-click-to-maximise, and our own edge/corner resize handles —
+hiding the decorations also removes the compositor's resize borders.
+
 ### Phase 7 — Desktop platform integration
 MPRIS2 + media keys, system tray, notifications, single-instance + file-association
 (`ExternalPlayerActivity` equivalent), equalizer via mpv audio filters, Chromecast/DLNA.

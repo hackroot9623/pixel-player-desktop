@@ -174,6 +174,18 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openNavCornerRadius(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.web_asset_rounded),
+                  title: const Text('Window'),
+                  subtitle: Text(
+                    settings.useCustomTitleBar
+                        ? 'Own title bar · buttons on the '
+                              '${settings.windowControlsPlacement.label.toLowerCase()}'
+                        : 'System title bar',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openWindowSettings(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.play_circle_outline_rounded),
                   title: const Text('Player look'),
                   subtitle: Text(

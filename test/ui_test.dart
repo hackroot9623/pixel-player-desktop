@@ -11,10 +11,10 @@ import 'package:pixelplay_desktop/data/db/database.dart';
 import 'package:pixelplay_desktop/data/models/models.dart';
 import 'package:pixelplay_desktop/data/models/transition.dart';
 import 'package:pixelplay_desktop/data/prefs/settings.dart';
+import 'package:pixelplay_desktop/ui/components/window_controls.dart';
 import 'package:pixelplay_desktop/state/providers.dart';
 import 'package:pixelplay_desktop/data/lyrics/lrc_parser.dart';
 import 'package:pixelplay_desktop/data/models/lyrics.dart';
-import 'package:pixelplay_desktop/data/prefs/settings.dart' show CarouselStyle;
 import 'package:pixelplay_desktop/ui/components/album_carousel.dart';
 import 'package:pixelplay_desktop/ui/components/lyrics_view.dart';
 import 'package:pixelplay_desktop/ui/components/playback_controls.dart';
@@ -461,6 +461,56 @@ void main() {
 
     container.read(libraryProvider.notifier).toggleFavorite(song);
     expect(container.read(isFavoriteProvider(song.id)), isFalse);
+  });
+
+  testWidgets('the title bar appears only with the custom decoration mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(host(const Scaffold(body: WindowTitleBar())));
+    await _settle(tester, frames: 2);
+
+    // Default keeps the system title bar, so the strip must take no space.
+    expect(settings.useCustomTitleBar, isFalse);
+    expect(find.byType(WindowControls), findsNothing);
+    expect(tester.getSize(find.byType(WindowTitleBar)).height, 0);
+
+    settings.useCustomTitleBar = true;
+    await _settle(tester, frames: 2);
+    expect(find.byType(WindowControls), findsOneWidget);
+    expect(
+      tester.getSize(find.byType(WindowTitleBar)).height,
+      windowTitleBarHeight,
+    );
+    // Minimise, maximise and close.
+    expect(find.byType(Tooltip), findsNWidgets(3));
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.remove_rounded), findsOneWidget);
+  });
+
+  testWidgets('control placement and style follow the settings', (
+    tester,
+  ) async {
+    resize(tester, const Size(800, 200));
+    settings.useCustomTitleBar = true;
+    await tester.pumpWidget(host(const Scaffold(body: WindowTitleBar())));
+    await _settle(tester, frames: 2);
+
+    double controlsCentre() =>
+        tester.getCenter(find.byType(WindowControls)).dx;
+    final width = tester.getSize(find.byType(WindowTitleBar)).width;
+
+    expect(settings.windowControlsPlacement, WindowControlsPlacement.topRight);
+    expect(controlsCentre(), greaterThan(width / 2));
+
+    settings.windowControlsPlacement = WindowControlsPlacement.topLeft;
+    await _settle(tester, frames: 2);
+    expect(controlsCentre(), lessThan(width / 2));
+
+    // Traffic lights draw dots rather than glyphs.
+    settings.windowControlsStyle = WindowControlsStyle.dots;
+    await _settle(tester, frames: 2);
+    expect(find.byIcon(Icons.close_rounded), findsNothing);
+    expect(find.byType(Tooltip), findsNWidgets(3));
   });
 
   test('carousel weights are identity-stable', () {

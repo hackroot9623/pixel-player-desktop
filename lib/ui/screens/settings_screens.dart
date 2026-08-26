@@ -6,6 +6,7 @@ import '../../data/prefs/settings.dart';
 import '../../state/providers.dart';
 import '../components/album_art.dart';
 import '../components/playback_controls.dart';
+import '../components/window_controls.dart';
 import '../theme/shapes.dart';
 
 /// Port of `presentation/screens/PaletteStyleSettingsScreen`. Each Material
@@ -517,6 +518,242 @@ class PlayerLookScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Window decoration settings: replace the system title bar with our own, and
+/// choose where its controls sit and how they look.
+///
+/// There is no Android counterpart — a phone has no window chrome — so this is
+/// desktop-only surface area rather than a port.
+class WindowScreen extends ConsumerWidget {
+  const WindowScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final theme = Theme.of(context);
+    final custom = settings.useCustomTitleBar;
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Window')),
+      body: ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          Card(
+            child: SwitchListTile(
+              secondary: const Icon(Icons.web_asset_rounded),
+              title: const Text('Use the app’s own title bar'),
+              subtitle: const Text(
+                'Hides the system title bar and draws the window buttons '
+                'in-app, so the interface reaches the window edges',
+              ),
+              value: custom,
+              onChanged: (value) {
+                settings.useCustomTitleBar = value;
+                // Applied to the real window immediately — no restart.
+                applyWindowDecorations(useCustomTitleBar: value);
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          Text('Preview', style: theme.textTheme.titleSmall),
+          const SizedBox(height: 12),
+          _WindowPreview(
+            custom: custom,
+            placement: settings.windowControlsPlacement,
+            style: settings.windowControlsStyle,
+          ),
+          const SizedBox(height: 24),
+
+          // Disabled rather than hidden, so it is clear what the switch above
+          // unlocks.
+          Opacity(
+            opacity: custom ? 1 : 0.4,
+            child: IgnorePointer(
+              ignoring: !custom,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Button position', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  SegmentedButton<WindowControlsPlacement>(
+                    segments: [
+                      for (final placement in WindowControlsPlacement.values)
+                        ButtonSegment(
+                          value: placement,
+                          label: Text(placement.label),
+                          icon: Icon(
+                            placement == WindowControlsPlacement.topLeft
+                                ? Icons.format_align_left_rounded
+                                : Icons.format_align_right_rounded,
+                          ),
+                        ),
+                    ],
+                    selected: {settings.windowControlsPlacement},
+                    onSelectionChanged: (value) =>
+                        settings.windowControlsPlacement = value.first,
+                  ),
+                  const SizedBox(height: 24),
+                  Text('Button style', style: theme.textTheme.titleSmall),
+                  const SizedBox(height: 8),
+                  for (final style in WindowControlsStyle.values)
+                    RadioListTile<WindowControlsStyle>(
+                      value: style,
+                      groupValue: settings.windowControlsStyle,
+                      title: Text(style.label),
+                      subtitle: Text(style.description),
+                      secondary: WindowControlsPreview(style: style),
+                      onChanged: (value) {
+                        if (value != null) settings.windowControlsStyle = value;
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            color: theme.colorScheme.surfaceContainerHighest,
+            child: const ListTile(
+              leading: Icon(Icons.info_outline_rounded),
+              title: Text('Dragging and maximising'),
+              subtitle: Text(
+                'With the app’s own title bar, drag the empty strip to '
+                'move the window and double-click it to maximise.',
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A miniature window showing where the controls land.
+class _WindowPreview extends StatelessWidget {
+  const _WindowPreview({
+    required this.custom,
+    required this.placement,
+    required this.style,
+  });
+
+  final bool custom;
+  final WindowControlsPlacement placement;
+  final WindowControlsStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final onLeft = placement == WindowControlsPlacement.topLeft;
+
+    Widget bar({required bool system}) => Container(
+      height: 22,
+      color: system
+          ? scheme.surfaceContainerHighest
+          : scheme.surfaceContainerLow,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      child: Row(
+        children: [
+          if (system)
+            Text(
+              'PixelPlayer',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: scheme.onSurfaceVariant,
+              ),
+            ),
+          const Spacer(),
+          WindowControlsPreview(style: style, scale: 0.7),
+        ],
+      ),
+    );
+
+    return Container(
+      height: 150,
+      decoration: BoxDecoration(
+        color: scheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: scheme.outlineVariant),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          if (custom)
+            SizedBox(
+              height: 22,
+              child: Row(
+                mainAxisAlignment: onLeft
+                    ? MainAxisAlignment.start
+                    : MainAxisAlignment.end,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: WindowControlsPreview(style: style, scale: 0.7),
+                  ),
+                ],
+              ),
+            )
+          else
+            bar(system: true),
+          // Body: a stand-in for the rail plus content, to show how much
+          // vertical space the choice costs.
+          Expanded(
+            child: Row(
+              children: [
+                Container(width: 26, color: scheme.surfaceContainerHigh),
+                Expanded(
+                  child: Container(color: scheme.surfaceContainerLowest),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Non-interactive rendering of the control cluster, for previews and pickers.
+class WindowControlsPreview extends StatelessWidget {
+  const WindowControlsPreview({super.key, required this.style, this.scale = 1});
+
+  final WindowControlsStyle style;
+  final double scale;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    if (style == WindowControlsStyle.dots) {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: 5 * scale,
+        children: [
+          for (final color in const [
+            Color(0xFFFF5F57),
+            Color(0xFFFEBC2E),
+            Color(0xFF28C840),
+          ])
+            Container(
+              width: 11 * scale,
+              height: 11 * scale,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+        ],
+      );
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: 6 * scale,
+      children: [
+        for (final icon in const [
+          Icons.remove_rounded,
+          Icons.crop_square_rounded,
+          Icons.close_rounded,
+        ])
+          Icon(icon, size: 13 * scale, color: scheme.onSurfaceVariant),
+      ],
     );
   }
 }
