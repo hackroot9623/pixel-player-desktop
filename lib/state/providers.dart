@@ -31,6 +31,7 @@ import '../data/ai/ai_client.dart';
 import '../data/ai/ai_playlist_generator.dart';
 import '../data/smart/smart_playlists.dart';
 import '../data/tags/tag_writer.dart';
+import '../player/equalizer.dart';
 import '../player/player_service.dart';
 
 /// Riverpod replaces Hilt (`di/`) plus the 49 `presentation/viewmodel` classes.
@@ -699,6 +700,56 @@ final artworkSchemesProvider =
       _schemeCache[key] = result;
       return result;
     });
+
+// -------------------------------------------------------------- equalizer
+
+/// The equalizer setting, applied to mpv on every change and stored so it
+/// survives a restart.
+class EqualizerController extends StateNotifier<EqualizerState> {
+  EqualizerController(this._settings, this._player)
+    : super(_settings.equalizer);
+
+  final Settings _settings;
+  final PlayerService _player;
+
+  void _apply(EqualizerState next) {
+    state = next;
+    _settings.equalizer = next;
+    // mpv takes `af` live, so this is heard immediately rather than on the next
+    // track.
+    _player.applyAudioFilter(next.filter);
+  }
+
+  void setEnabled(bool enabled) => _apply(state.copyWith(enabled: enabled));
+
+  void setGain(int band, int gain) => _apply(state.withGain(band, gain));
+
+  /// Applies a preset, switching the equalizer on if it was off — tapping a
+  /// preset and hearing nothing would read as a bug.
+  void selectPreset(EqualizerPreset preset) =>
+      _apply(state.withPreset(preset).copyWith(enabled: true));
+
+  void setBassBoost(int strength) =>
+      _apply(state.copyWith(bassBoost: strength));
+
+  void setVirtualizer(int strength) =>
+      _apply(state.copyWith(virtualizer: strength));
+
+  void setLoudness(int strength) => _apply(state.copyWith(loudness: strength));
+
+  /// Back to flat with the effects off, leaving the equalizer switched on.
+  void reset() => _apply(
+    EqualizerState(enabled: state.enabled, gains: EqualizerPreset.flat.gains),
+  );
+}
+
+final equalizerProvider =
+    StateNotifierProvider<EqualizerController, EqualizerState>(
+      (ref) => EqualizerController(
+        ref.watch(settingsProvider),
+        ref.watch(playerProvider),
+      ),
+    );
 
 // ---------------------------------------------------------- remote sources
 

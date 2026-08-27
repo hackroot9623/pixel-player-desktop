@@ -199,6 +199,19 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openAccounts(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.tune_rounded),
+                  title: const Text('Equalizer'),
+                  subtitle: Text(
+                    switch (ref.watch(equalizerProvider)) {
+                      final eq when !eq.enabled => 'Off',
+                      final eq when eq.isNeutral => 'On · flat',
+                      final eq => 'On · ${eq.preset?.label ?? 'Custom'}',
+                    },
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openEqualizer(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.auto_awesome_rounded),
                   title: const Text('AI'),
                   subtitle: Text(

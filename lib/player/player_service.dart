@@ -22,6 +22,9 @@ class PlayerService extends ChangeNotifier {
       ),
     );
     _wire();
+    // The stored curve has to reach mpv before the first track does, and this
+    // is the only place that runs once per player.
+    applyAudioFilter(_settings.equalizer.filter);
   }
 
   final MusicDatabase _db;
@@ -181,6 +184,25 @@ class PlayerService extends ChangeNotifier {
     final remote = path.startsWith('http://') || path.startsWith('https://');
     if (!remote) return Media('file://${Uri.encodeFull(path)}');
     return Media(path, httpHeaders: headersForUrl(path));
+  }
+
+  /// Hands an mpv audio filter chain to the player.
+  ///
+  /// mpv applies `af` live, so an equalizer change is heard without restarting
+  /// the track. An empty string clears the chain, which is what a disabled
+  /// equalizer means — not a flat curve, since ten no-op biquads are still ten
+  /// biquads.
+  ///
+  /// Silently does nothing on a platform whose player is not mpv, rather than
+  /// throwing at a user who only moved a slider.
+  Future<void> applyAudioFilter(String filter) async {
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return;
+    try {
+      await platform.setProperty('af', filter);
+    } catch (_) {
+      // A filter mpv will not accept must not take the player down with it.
+    }
   }
 
   /// The registered headers whose prefix matches [url], or null for none.

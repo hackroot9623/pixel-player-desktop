@@ -125,7 +125,7 @@ mapping, model recovery, and exactly what leaves the machine.
 
 Phase 5 is complete.
 
-### Phase 6 — Remote sources 🟡
+### Phase 6 — Remote sources ✅
 Jellyfin and Navidrome are done: `data/remote/` holds one `RemoteSource` abstraction with
 both backends behind it, accounts are stored per server (several of the same kind can
 coexist), and there is an Accounts screen plus one browse screen serving both dashboards.
@@ -180,10 +180,11 @@ later tracks.
 import playlist metadata and act as a remote for a Spotify player already sitting next to
 the app — neither earned its place, and both needed credentials the user had to register.
 
-Not started:
-- **NetEase / QQMusic** are unofficial reverse-engineered endpoints (~1800 lines) that need
-  region-restricted access to exercise. Porting them blind would ship code that has never
-  once been run.
+**NetEase / QQMusic: dropped.** Unofficial reverse-engineered endpoints (~1800 lines)
+whose catalogue is geo-locked to China, so neither the code nor the result could be
+exercised from here. Everything that could be tested would be the request signing and the
+parsing; whether the endpoints answer at all would stay unknown. Phase 6 is otherwise
+complete.
 
 ### Desktop-only surface (no Android counterpart)
 
@@ -198,9 +199,23 @@ side and in either convention (glyphs or traffic lights). Includes the drag
 region, double-click-to-maximise, and our own edge/corner resize handles —
 hiding the decorations also removes the compositor's resize borders.
 
-### Phase 7 — Desktop platform integration
-MPRIS2 + media keys, system tray, notifications, single-instance + file-association
-(`ExternalPlayerActivity` equivalent), equalizer via mpv audio filters, Chromecast/DLNA.
+### Phase 7 — Desktop platform integration 🟡
+**Equalizer is in.** Android drove four system effects from `android.media.audiofx`
+(`Equalizer`, `BassBoost`, `Virtualizer`, `LoudnessEnhancer`); desktop has no such service,
+but mpv carries ffmpeg's filters, so all four become one `af` string: an `equalizer` biquad
+per band, a `bass` low shelf, `extrastereo`, and `dynaudnorm`. The ten band centres, the
+±15 dB range and the ten presets are the phone's values, so a preset is the same curve.
+
+Off means no filter at all rather than a flat one — ten no-op biquads are still ten biquads
+in the path. mpv takes `af` live, so a slider is heard while it is being dragged, and the
+screen shows the chain it generates.
+
+The generated chain was checked against real mpv, not just the docs: it is accepted whole,
+and `dynaudnorm`'s window turned out to need an odd frame count, which ffmpeg otherwise
+rounds up while logging about it.
+
+Still to do: MPRIS2 + media keys, system tray, notifications, single-instance +
+file-association (`ExternalPlayerActivity` equivalent), Chromecast/DLNA.
 
 ### Phase 8 — Long tail
 Backup/restore, GitHub update check, About/OSS licenses, easter egg (BrickBreaker),

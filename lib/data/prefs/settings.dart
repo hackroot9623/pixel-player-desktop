@@ -9,6 +9,7 @@ import '../models/lyrics.dart';
 import '../models/sort_option.dart';
 import '../models/transition.dart';
 import '../scanner/library_scanner.dart';
+import '../../player/equalizer.dart';
 
 /// How much of the neighbouring artwork peeks in beside the current track in
 /// the full player's carousel. Ported from `CarouselStyle` in the Android
@@ -264,6 +265,16 @@ class Settings extends ChangeNotifier {
 
   bool get aiExtendedFields => _prefs.getBool('ai_extended_fields') ?? false;
   set aiExtendedFields(bool value) => _set('ai_extended_fields', value);
+
+  // -------------------------------------------------------------- equalizer
+
+  /// The whole equalizer setting as JSON: bands plus the three effects.
+  ///
+  /// One key rather than fourteen, because it is read and written as a unit and
+  /// a half-applied curve is worse than none.
+  EqualizerState get equalizer =>
+      EqualizerState.decode(_prefs.getString('equalizer'));
+  set equalizer(EqualizerState value) => _set('equalizer', value.encode());
 
   // ---------------------------------------------------------- remote sources
 

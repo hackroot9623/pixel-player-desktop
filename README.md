@@ -155,3 +155,17 @@ Optionally give a folder id to scan only that folder. Note the ceiling on a
 long session: stream headers are set when a queue is opened, so a Drive queue
 still playing an hour later hits expired tokens on its later tracks — reopening
 the queue fixes it.
+
+## Equalizer
+
+Ten bands at the ISO centres (31 Hz … 16 kHz), ±15 dB, with the same ten presets as the
+Android app so a preset is the same curve. Alongside them: bass boost, stereo width and
+levelling, which stand in for Android's BassBoost, Virtualizer and LoudnessEnhancer.
+
+There is no system audio-effects service on desktop, so all of it becomes one mpv audio
+filter chain — a biquad per band, then `bass`, `extrastereo` and `dynaudnorm`. mpv applies
+it live, so a slider is heard while it is being dragged, and the screen will show you the
+exact chain it is generating.
+
+Switching the equalizer off removes the filter rather than flattening it: ten no-op biquads
+are still ten biquads in the signal path.

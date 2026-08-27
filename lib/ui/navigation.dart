@@ -13,6 +13,7 @@ import 'screens/playlist_detail_screen.dart';
 import 'screens/remote_browse_screen.dart';
 import 'screens/telegram_setup_screen.dart';
 import 'screens/drive_setup_screen.dart';
+import 'screens/equalizer_screen.dart';
 import 'screens/youtube_setup_screen.dart';
 import 'screens/smart_playlist_screen.dart';
 import 'screens/settings_screen.dart';
@@ -66,6 +67,9 @@ void openYoutubeSetup(BuildContext context, {String? accountId}) =>
 
 void openDriveSetup(BuildContext context, {String? accountId}) =>
     _push(context, DriveSetupScreen(accountId: accountId));
+
+void openEqualizer(BuildContext context) =>
+    _push(context, const EqualizerScreen());
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());
