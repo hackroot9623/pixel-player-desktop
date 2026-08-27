@@ -141,11 +141,11 @@ class RemoteAccount {
       : (kind == RemoteKind.telegram ? kind.label : '${kind.label} · $host');
 
   bool get isComplete => switch (kind) {
-    // Telegram authenticates against Telegram itself: what it needs up front is
-    // an api_id/api_hash pair from my.telegram.org, not a server address.
-    RemoteKind.telegram =>
-      (extra['apiId']?.isNotEmpty ?? false) &&
-          (extra['apiHash']?.isNotEmpty ?? false),
+    // Telegram authenticates against Telegram itself, so there is no server
+    // address to check. The api_id may be the build's rather than this
+    // account's, which is why nothing here is required — the setup screen is
+    // what refuses to start without a pair from one source or the other.
+    RemoteKind.telegram => true,
     _ => normalizedUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty,
   };
 
@@ -156,6 +156,6 @@ class RemoteAccount {
     RemoteKind.navidrome => isComplete,
     // TDLib keeps the session on disk, so "signed in" is whether that session
     // is still valid — which only TDLib can answer, at startup.
-    RemoteKind.telegram => isComplete && extra['session'] == 'ready',
+    RemoteKind.telegram => extra['session'] == 'ready',
   };
 }

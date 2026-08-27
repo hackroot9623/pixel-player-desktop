@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/remote/remote_account.dart';
 import '../../data/remote/telegram/tdlib_client.dart';
+import '../../data/remote/telegram/telegram_credentials.dart';
 import '../../data/remote/telegram/telegram_source.dart';
 import '../../state/providers.dart';
 
@@ -70,9 +71,16 @@ class _TelegramSetupScreenState extends ConsumerState<TelegramSetupScreen> {
 
   /// Saves the credentials, then starts TDLib and follows its state.
   Future<void> _begin() async {
-    final id = int.tryParse(_apiId.text.trim());
-    if (id == null || _apiHash.text.trim().isEmpty) {
-      setState(() => _error = 'Enter the api_id and api_hash from my.telegram.org.');
+    final typed = TelegramAppCredentials.fromStrings(
+      _apiId.text,
+      _apiHash.text,
+    );
+    final fromBuild = ref.read(telegramAppCredentialsProvider);
+    if (!typed.isPresent && !fromBuild.isPresent) {
+      setState(
+        () => _error = 'This build has no api_id, so enter one from '
+            'my.telegram.org below.',
+      );
       return;
     }
 
@@ -92,8 +100,12 @@ class _TelegramSetupScreenState extends ConsumerState<TelegramSetupScreen> {
             ))
         .copyWith(
           extra: {
-            'apiId': '$id',
-            'apiHash': _apiHash.text.trim(),
+            // Only stored when the user brought their own pair; otherwise the
+            // build's is used and there is nothing to keep per account.
+            if (typed.isPresent) ...{
+              'apiId': '${typed.apiId}',
+              'apiHash': typed.apiHash,
+            },
             if (_libraryPath.text.trim().isNotEmpty)
               'libraryPath': _libraryPath.text.trim(),
           },
@@ -163,6 +175,7 @@ class _TelegramSetupScreenState extends ConsumerState<TelegramSetupScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final hasAppCredentials = ref.watch(telegramAppCredentialsProvider).isPresent;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Telegram')),
@@ -180,10 +193,11 @@ class _TelegramSetupScreenState extends ConsumerState<TelegramSetupScreen> {
                   Text(
                     'Telegram needs TDLib, the official client library, which '
                     'most distributions do not package — build it from '
-                    'github.com/tdlib/td if the step below cannot find it. You '
-                    'also need your own api_id and api_hash from '
-                    'my.telegram.org: Telegram issues those per application, '
-                    'and PixelPlayer cannot ship one for you.',
+                    'github.com/tdlib/td if the step below cannot find it.'
+                    '${hasAppCredentials ? '' : ' This build carries no '
+                        'api_id, so you also need a pair from my.telegram.org: '
+                        'Telegram issues those per application, not per '
+                        'person.'}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
@@ -193,8 +207,35 @@ class _TelegramSetupScreenState extends ConsumerState<TelegramSetupScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('1 · Credentials', style: theme.textTheme.titleSmall),
-          const SizedBox(height: 8),
+          if (hasAppCredentials) ...[
+            Row(
+              children: [
+                Icon(
+                  Icons.verified_user_outlined,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    "Using this build's registered api_id — just sign in below.",
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+          ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            initiallyExpanded: !hasAppCredentials,
+            title: Text(
+              hasAppCredentials
+                  ? 'Use my own api_id instead'
+                  : '1 · Credentials',
+              style: theme.textTheme.titleSmall,
+            ),
+            children: [
           Row(
             spacing: 12,
             children: [
@@ -228,6 +269,8 @@ class _TelegramSetupScreenState extends ConsumerState<TelegramSetupScreen> {
               helperText: 'Leave empty to search the usual library paths',
               border: OutlineInputBorder(),
             ),
+          ),
+            ],
           ),
           const SizedBox(height: 12),
           FilledButton.icon(

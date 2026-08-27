@@ -18,6 +18,7 @@ import '../data/remote/jellyfin_source.dart';
 import '../data/remote/navidrome_source.dart';
 import '../data/remote/remote_library.dart';
 import '../data/remote/telegram/tdlib_client.dart';
+import '../data/remote/telegram/telegram_credentials.dart';
 import '../data/remote/telegram/telegram_source.dart';
 import '../data/remote/remote_account.dart';
 import '../data/remote/remote_source.dart';
@@ -709,6 +710,17 @@ RemoteSource remoteSourceFor(RemoteAccount account) => switch (account.kind) {
   ),
 };
 
+/// The application's own Telegram credentials, if this build has them.
+///
+/// Present when compiled with `--dart-define=TELEGRAM_API_ID/HASH` or when a
+/// `telegram_app.json` sits beside the app's data. When present the user only
+/// signs in with a phone number and a code, as on Android.
+final telegramAppCredentialsProvider = Provider<TelegramAppCredentials>(
+  (ref) => TelegramAppCredentials.resolve(
+    configDirectory: p.dirname(ref.watch(artworkDirProvider)),
+  ),
+);
+
 /// Where TDLib keeps its session and downloaded files.
 final telegramDirectoriesProvider =
     Provider<({String database, String files})>((ref) {
@@ -735,12 +747,26 @@ final telegramClientProvider =
         throw const TdlibException('That Telegram account is gone.');
       }
       final dirs = ref.watch(telegramDirectoriesProvider);
+      // An account can carry its own pair, for someone who would rather use
+      // their own registration; otherwise the build's own is used.
+      final appCredentials = ref.watch(telegramAppCredentialsProvider);
+      final own = TelegramAppCredentials.fromStrings(
+        account.extra['apiId'] ?? '',
+        account.extra['apiHash'] ?? '',
+      );
+      final credentials = own.isPresent ? own : appCredentials;
+      if (!credentials.isPresent) {
+        throw const TdlibException(
+          'This build has no Telegram api_id. Add one in the Telegram setup, '
+          'or build with --dart-define=TELEGRAM_API_ID and TELEGRAM_API_HASH.',
+        );
+      }
       final client = TdlibClient(
         transport: FfiTdlibTransport.open(
           explicitPath: account.extra['libraryPath'],
         ),
-        apiId: int.tryParse(account.extra['apiId'] ?? '') ?? 0,
-        apiHash: account.extra['apiHash'] ?? '',
+        apiId: credentials.apiId,
+        apiHash: credentials.apiHash,
         databaseDirectory: p.join(dirs.database, account.id),
         filesDirectory: p.join(dirs.files, account.id),
       );

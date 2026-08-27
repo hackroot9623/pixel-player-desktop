@@ -47,3 +47,33 @@ Without those the pure-logic cases still run and the rest skip.
 The original `gflex_variable.ttf` (Google Sans Flex, `ROND` axis at 100) ships in
 `assets/fonts/`, so typography matches the Android app rather than approximating
 it.
+
+## Telegram credentials
+
+Telegram's `api_id`/`api_hash` identify the *application*, not the user: MTProto
+requires them before a phone number can be offered, so signing in cannot produce
+them. The Android build reads a pair out of `local.properties` into
+`BuildConfig`; the desktop build does the same, and then a user only sees the
+phone-and-code steps.
+
+Register PixelPlayer once at https://my.telegram.org, then either build with the
+pair:
+
+```bash
+flutter build linux --dart-define=TELEGRAM_API_ID=1234567 \
+  --dart-define=TELEGRAM_API_HASH=0123456789abcdef0123456789abcdef
+```
+
+or drop a `telegram_app.json` next to the app's data — no rebuild needed:
+
+```json
+{ "api_id": 1234567, "api_hash": "0123456789abcdef0123456789abcdef" }
+```
+
+Either way the file and the defines stay out of git. With neither present, the
+setup screen asks for a pair so a user can bring their own.
+
+Telegram also needs TDLib (`libtdjson`), which most distributions do not
+package — build it from https://github.com/tdlib/td, or install a distribution
+package where one exists. If it is not on the default library path, the setup
+screen takes the path to the `.so`.

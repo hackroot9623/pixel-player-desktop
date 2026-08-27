@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixelplay_desktop/data/remote/remote_account.dart';
 import 'package:pixelplay_desktop/data/remote/telegram/tdlib_client.dart';
+import 'package:pixelplay_desktop/data/remote/telegram/telegram_credentials.dart';
 import 'package:pixelplay_desktop/data/remote/telegram/telegram_source.dart';
 
 /// TDLib is a native library this machine does not have, so the transport is
@@ -531,9 +533,11 @@ void main() {
   });
 
   group('account', () {
-    test('Telegram is complete once it has api credentials', () {
-      // It has no server address, so the usual url/user/password rule does not
-      // apply to it.
+    test('Telegram needs no server address or password to be complete', () {
+      // The usual url/user/password rule does not apply, and the api_id may
+      // come from the build rather than the account, so there is nothing here
+      // to require — the setup screen refuses to start without a pair from one
+      // source or the other.
       expect(_account().isComplete, isTrue);
       expect(
         RemoteAccount(
@@ -543,7 +547,7 @@ void main() {
           username: '',
           password: '',
         ).isComplete,
-        isFalse,
+        isTrue,
       );
     });
 
@@ -575,6 +579,93 @@ void main() {
           ),
         ),
       );
+    });
+  });
+
+  group('application credentials', () {
+    // api_id identifies the application, not the person: MTProto wants it
+    // before a phone number can be offered, which is why signing in cannot
+    // produce one. The build carries it so the user only does phone and code.
+    late Directory tmp;
+
+    setUp(() async {
+      tmp = await Directory.systemTemp.createTemp('pixelplay_tg');
+    });
+
+    tearDown(() async => tmp.delete(recursive: true));
+
+    test('a pair read from text is accepted', () {
+      final credentials = TelegramAppCredentials.fromStrings(' 12345 ', ' abc ');
+      expect(credentials.isPresent, isTrue);
+      expect(credentials.apiId, 12345);
+      expect(credentials.apiHash, 'abc');
+    });
+
+    test('half a pair is no pair', () {
+      expect(TelegramAppCredentials.fromStrings('12345', '').isPresent, isFalse);
+      expect(TelegramAppCredentials.fromStrings('', 'abc').isPresent, isFalse);
+      expect(TelegramAppCredentials.fromStrings('0', 'abc').isPresent, isFalse);
+      expect(
+        TelegramAppCredentials.fromStrings('not-a-number', 'abc').isPresent,
+        isFalse,
+      );
+    });
+
+    test('a config file supplies the pair without a rebuild', () {
+      File('${tmp.path}/${TelegramAppCredentials.fileName}').writeAsStringSync(
+        jsonEncode({'api_id': 4321, 'api_hash': 'from-file'}),
+      );
+      final resolved = TelegramAppCredentials.resolve(
+        configDirectory: tmp.path,
+      );
+      expect(resolved.apiId, 4321);
+      expect(resolved.apiHash, 'from-file');
+    });
+
+    test('the local.properties spelling is accepted too', () {
+      // So a pair can be lifted straight from the Android project.
+      File('${tmp.path}/${TelegramAppCredentials.fileName}').writeAsStringSync(
+        jsonEncode({
+          'TELEGRAM_API_ID': '999',
+          'TELEGRAM_API_HASH': 'android-style',
+        }),
+      );
+      final resolved = TelegramAppCredentials.resolve(
+        configDirectory: tmp.path,
+      );
+      expect(resolved.apiId, 999);
+      expect(resolved.apiHash, 'android-style');
+    });
+
+    test('a malformed file sends the user to the manual fields', () {
+      // Rather than throwing inside the account screen.
+      File('${tmp.path}/${TelegramAppCredentials.fileName}')
+          .writeAsStringSync('{not json');
+      expect(
+        TelegramAppCredentials.resolve(configDirectory: tmp.path).isPresent,
+        isFalse,
+      );
+    });
+
+    test('no file and nothing compiled in means no pair', () {
+      expect(
+        TelegramAppCredentials.resolve(configDirectory: tmp.path).isPresent,
+        isFalse,
+      );
+      expect(TelegramAppCredentials.resolve().isPresent, isFalse);
+    });
+
+    test('an account no longer has to carry its own pair', () {
+      // With the build supplying one, there is nothing to fill in per account.
+      final bare = RemoteAccount(
+        id: 'tg-2',
+        kind: RemoteKind.telegram,
+        serverUrl: '',
+        username: '',
+        password: '',
+      );
+      expect(bare.isComplete, isTrue);
+      expect(bare.isAuthenticated, isFalse, reason: 'not signed in yet');
     });
   });
 }
