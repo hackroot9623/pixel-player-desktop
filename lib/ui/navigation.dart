@@ -6,9 +6,11 @@ import 'screens/album_detail_screen.dart';
 import 'screens/artist_detail_screen.dart';
 import 'screens/folder_screen.dart';
 import 'screens/genre_detail_screen.dart';
+import 'screens/accounts_screen.dart';
 import 'screens/ai_settings_screen.dart';
 import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
+import 'screens/remote_browse_screen.dart';
 import 'screens/smart_playlist_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/settings_screens.dart';
@@ -46,6 +48,12 @@ void openMashup(BuildContext context) =>
 
 void openAiSettings(BuildContext context) =>
     _push(context, const AiSettingsScreen());
+
+void openAccounts(BuildContext context) =>
+    _push(context, const AccountsScreen());
+
+void openRemoteBrowse(BuildContext context, String accountId) =>
+    _push(context, RemoteBrowseScreen(accountId: accountId));
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());

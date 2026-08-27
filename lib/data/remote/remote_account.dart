@@ -1,0 +1,133 @@
+// Ported from the credential models under `data/{jellyfin,navidrome}/model`.
+//
+// One account record covers every backend: they all reduce to a server, a
+// user, a secret, and whatever the server handed back at login.
+
+/// Which remote backend an account talks to.
+enum RemoteKind {
+  jellyfin('jellyfin', 'Jellyfin', 'Media server — logs in with a password'),
+  navidrome(
+    'navidrome',
+    'Navidrome',
+    'Subsonic-compatible server — Airsonic and Gonic work too',
+  );
+
+  const RemoteKind(this.storageKey, this.label, this.description);
+
+  final String storageKey;
+  final String label;
+  final String description;
+
+  static RemoteKind? fromStorageKey(String? value) {
+    for (final kind in values) {
+      if (kind.storageKey == value) return kind;
+    }
+    return null;
+  }
+}
+
+/// A configured remote account.
+///
+/// [password] is kept because both protocols need it per request: Subsonic
+/// hashes it with a fresh salt on every call, and Jellyfin needs it again if the
+/// access token is rejected. Stored in the same plain-text preferences file as
+/// the AI keys — worth moving to the system keyring together.
+class RemoteAccount {
+  const RemoteAccount({
+    required this.id,
+    required this.kind,
+    required this.serverUrl,
+    required this.username,
+    required this.password,
+    this.accessToken,
+    this.userId,
+    this.displayName,
+  });
+
+  factory RemoteAccount.fromJson(Map<String, dynamic> json) => RemoteAccount(
+    id: json['id'] as String,
+    kind: RemoteKind.fromStorageKey(json['kind'] as String?) ??
+        RemoteKind.navidrome,
+    serverUrl: json['serverUrl'] as String? ?? '',
+    username: json['username'] as String? ?? '',
+    password: json['password'] as String? ?? '',
+    accessToken: json['accessToken'] as String?,
+    userId: json['userId'] as String?,
+    displayName: json['displayName'] as String?,
+  );
+
+  final String id;
+  final RemoteKind kind;
+  final String serverUrl;
+  final String username;
+  final String password;
+
+  /// Jellyfin's access token. Subsonic has no session, so it stays null.
+  final String? accessToken;
+
+  /// Jellyfin's user id, needed on every item query.
+  final String? userId;
+
+  /// What to call this account in the UI; falls back to the host.
+  final String? displayName;
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'kind': kind.storageKey,
+    'serverUrl': serverUrl,
+    'username': username,
+    'password': password,
+    if (accessToken != null) 'accessToken': accessToken,
+    if (userId != null) 'userId': userId,
+    if (displayName != null) 'displayName': displayName,
+  };
+
+  RemoteAccount copyWith({
+    String? serverUrl,
+    String? username,
+    String? password,
+    String? accessToken,
+    String? userId,
+    String? displayName,
+  }) => RemoteAccount(
+    id: id,
+    kind: kind,
+    serverUrl: serverUrl ?? this.serverUrl,
+    username: username ?? this.username,
+    password: password ?? this.password,
+    accessToken: accessToken ?? this.accessToken,
+    userId: userId ?? this.userId,
+    displayName: displayName ?? this.displayName,
+  );
+
+  /// The server URL with a scheme and no trailing slash.
+  ///
+  /// People type `music.example.com` and `http://nas:4533/` in equal measure,
+  /// so the scheme is filled in and the slash trimmed rather than rejected.
+  String get normalizedUrl {
+    var trimmed = serverUrl.trim();
+    while (trimmed.endsWith('/')) {
+      trimmed = trimmed.substring(0, trimmed.length - 1);
+    }
+    if (trimmed.isEmpty) return '';
+    final hasScheme =
+        trimmed.startsWith('http://') || trimmed.startsWith('https://');
+    return hasScheme ? trimmed : 'https://$trimmed';
+  }
+
+  String get host => Uri.tryParse(normalizedUrl)?.host ?? serverUrl;
+
+  String get title => displayName?.trim().isNotEmpty == true
+      ? displayName!.trim()
+      : '${kind.label} · $host';
+
+  bool get isComplete =>
+      normalizedUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+
+  /// Jellyfin needs a token and a user id before it can query anything.
+  bool get isAuthenticated => switch (kind) {
+    RemoteKind.jellyfin =>
+      (accessToken?.isNotEmpty ?? false) && (userId?.isNotEmpty ?? false),
+    RemoteKind.navidrome => isComplete,
+  };
+}

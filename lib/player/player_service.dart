@@ -160,10 +160,17 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
-  Playlist _playlist() => Playlist(
-    [for (final song in _queue) Media('file://${Uri.encodeFull(song.path)}')],
-    index: _index,
-  );
+  /// A song's path is either a file on disk or, for a remote source, an
+  /// already-signed stream URL. mpv plays both; only the local case needs the
+  /// `file://` scheme and escaping.
+  static Media mediaFor(Song song) {
+    final path = song.path;
+    final remote = path.startsWith('http://') || path.startsWith('https://');
+    return Media(remote ? path : 'file://${Uri.encodeFull(path)}');
+  }
+
+  Playlist _playlist() =>
+      Playlist([for (final song in _queue) mediaFor(song)], index: _index);
 
   /// Plays [songs] starting at [startIndex] — the single entry point used by
   /// every "play" affordance in the UI.
@@ -340,7 +347,7 @@ class PlayerService extends ChangeNotifier {
     if (!hasQueue) return playQueue(songs);
     _queue = [..._queue, ...songs];
     for (final song in songs) {
-      await _player.add(Media('file://${Uri.encodeFull(song.path)}'));
+      await _player.add(mediaFor(song));
     }
     notifyListeners();
   }

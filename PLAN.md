@@ -125,11 +125,34 @@ mapping, model recovery, and exactly what leaves the machine.
 
 Phase 5 is complete.
 
-### Phase 6 — Remote sources
-Jellyfin, Navidrome, Google Drive, Telegram, NetEase, QQMusic — dashboards + streaming
-(`data/stream`, `data/{jellyfin,navidrome,gdrive,telegram,netease,qqmusic}`), Accounts screen.
+### Phase 6 — Remote sources 🟡
+Jellyfin and Navidrome are done: `data/remote/` holds one `RemoteSource` abstraction with
+both backends behind it, accounts are stored per server (several of the same kind can
+coexist), and there is an Accounts screen plus one browse screen serving both dashboards.
+
+The Android app needs a local HTTP proxy per backend (`JellyfinStreamProxy` and friends,
+~1000 lines) because ExoPlayer cannot carry the auth. mpv opens a signed URL directly, so
+none of the proxies come across — a remote song's `path` is simply a playable URL, and
+`PlayerService.mediaFor` decides between `file://` and passthrough.
+
+Auth per protocol: Subsonic signs every request `t=md5(password+salt)` with a fresh salt,
+so the password never crosses the wire; Jellyfin logs in once and sends its token in a
+header, with `api_key` in the URL only for the stream, which mpv fetches itself.
+
+Remote libraries are held in memory, not written to the local database: `replaceLibrary`
+would drop them on the next rescan, and a server's catalogue is not ours to mirror.
+
+Not started, and each blocked on something a test cannot supply:
+- **Google Drive** needs an OAuth client id and an interactive consent flow. The API layer
+  is portable, but nothing can be verified without a real Google project.
+- **Telegram** needs TDLib — a native library and an MTProto session, phone number and all.
+  The Android side is ~1700 lines against a dependency this repo does not have.
+- **NetEase / QQMusic** are unofficial reverse-engineered endpoints (~1800 lines) that also
+  need region-restricted access to exercise. Porting them blind would ship code that has
+  never once been run.
 
 ### Desktop-only surface (no Android counterpart)
+
 Compact mode: below 620x440 the shell drops the navigation rail and the library
 and becomes a player — artwork, track, seek bar and transport — reverting when
 the window grows. The window minimum is 320x180 so it can be shrunk to a

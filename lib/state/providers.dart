@@ -14,6 +14,10 @@ import '../data/models/lyrics.dart';
 import '../data/models/models.dart';
 import '../data/models/sort_option.dart';
 import '../data/prefs/settings.dart';
+import '../data/remote/jellyfin_source.dart';
+import '../data/remote/navidrome_source.dart';
+import '../data/remote/remote_account.dart';
+import '../data/remote/remote_source.dart';
 import '../data/scanner/library_scanner.dart';
 import '../data/ai/ai_client.dart';
 import '../data/ai/ai_playlist_generator.dart';
@@ -677,6 +681,62 @@ final artworkSchemesProvider =
       _schemeCache[key] = result;
       return result;
     });
+
+// ---------------------------------------------------------- remote sources
+
+/// Builds the client for one account. Kept out of the widgets so a screen never
+/// has to know which protocol it is talking to.
+RemoteSource remoteSourceFor(RemoteAccount account) => switch (account.kind) {
+  RemoteKind.jellyfin => JellyfinSource(account),
+  RemoteKind.navidrome => NavidromeSource(account),
+};
+
+final remoteAccountsProvider = Provider<List<RemoteAccount>>(
+  (ref) => ref.watch(settingsProvider).remoteAccounts,
+);
+
+/// The tracks one account offers.
+///
+/// Remote libraries are held in memory rather than written into the local
+/// database: a rescan calls `replaceLibrary`, which would drop them, and a
+/// server's catalogue is its own business rather than something to mirror.
+final remoteSongsProvider =
+    FutureProvider.family<List<Song>, String>((ref, accountId) async {
+      final account = ref
+          .watch(remoteAccountsProvider)
+          .where((entry) => entry.id == accountId)
+          .firstOrNull;
+      if (account == null) return const [];
+
+      final source = remoteSourceFor(account);
+      ref.onDispose(source.close);
+      if (!account.isAuthenticated) {
+        // Jellyfin tokens expire; signing in again here keeps the browse screen
+        // working without sending the user back to Accounts.
+        final refreshed = await source.connect();
+        ref.read(settingsProvider).upsertRemoteAccount(refreshed);
+        final reconnected = remoteSourceFor(refreshed);
+        ref.onDispose(reconnected.close);
+        return reconnected.songs();
+      }
+      return source.songs();
+    });
+
+/// Signs in and stores whatever the server returned. Returns the saved account.
+Future<RemoteAccount> connectRemoteAccount(
+  WidgetRef ref,
+  RemoteAccount account,
+) async {
+  final source = remoteSourceFor(account);
+  try {
+    final connected = await source.connect();
+    ref.read(settingsProvider).upsertRemoteAccount(connected);
+    ref.invalidate(remoteSongsProvider(connected.id));
+    return connected;
+  } finally {
+    source.close();
+  }
+}
 
 // ------------------------------------------------------------------- stats
 

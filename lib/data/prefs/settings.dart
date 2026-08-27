@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ai/ai_provider.dart';
+import '../remote/remote_account.dart';
 import '../models/lyrics.dart';
 import '../models/sort_option.dart';
 import '../models/transition.dart';
@@ -263,6 +264,40 @@ class Settings extends ChangeNotifier {
 
   bool get aiExtendedFields => _prefs.getBool('ai_extended_fields') ?? false;
   set aiExtendedFields(bool value) => _set('ai_extended_fields', value);
+
+  // ---------------------------------------------------------- remote sources
+
+  /// Configured remote accounts, in the order the user added them.
+  ///
+  /// Ported from the per-backend DataStore files. One list keeps the Accounts
+  /// screen simple and lets several servers of the same kind coexist.
+  List<RemoteAccount> get remoteAccounts {
+    final raw = _prefs.getStringList('remote_accounts') ?? const [];
+    return [
+      for (final entry in raw)
+        RemoteAccount.fromJson(jsonDecode(entry) as Map<String, dynamic>),
+    ];
+  }
+
+  set remoteAccounts(List<RemoteAccount> value) => _set('remote_accounts', [
+    for (final account in value) jsonEncode(account.toJson()),
+  ]);
+
+  void upsertRemoteAccount(RemoteAccount account) {
+    final accounts = remoteAccounts;
+    final index = accounts.indexWhere((entry) => entry.id == account.id);
+    if (index == -1) {
+      remoteAccounts = [...accounts, account];
+    } else {
+      remoteAccounts = [...accounts]..[index] = account;
+    }
+  }
+
+  void removeRemoteAccount(String id) =>
+      remoteAccounts = [
+        for (final account in remoteAccounts)
+          if (account.id != id) account,
+      ];
 
   // ------------------------------------------------------------------- misc
 

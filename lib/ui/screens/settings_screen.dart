@@ -186,6 +186,19 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openWindowSettings(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.cloud_outlined),
+                  title: const Text('Accounts'),
+                  subtitle: Text(
+                    switch (ref.watch(remoteAccountsProvider).length) {
+                      0 => 'Stream from Jellyfin or Navidrome',
+                      1 => '1 server',
+                      final count => '$count servers',
+                    },
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openAccounts(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.auto_awesome_rounded),
                   title: const Text('AI'),
                   subtitle: Text(
