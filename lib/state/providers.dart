@@ -22,6 +22,8 @@ import '../data/remote/telegram/telegram_credentials.dart';
 import '../data/remote/telegram/telegram_source.dart';
 import '../data/remote/youtube/youtube_source.dart';
 import '../data/remote/youtube/ytdlp_client.dart';
+import '../data/remote/drive/drive_source.dart';
+import '../data/remote/drive/google_oauth.dart';
 import '../data/remote/remote_account.dart';
 import '../data/remote/remote_source.dart';
 import '../data/scanner/library_scanner.dart';
@@ -713,7 +715,55 @@ RemoteSource remoteSourceFor(RemoteAccount account) => switch (account.kind) {
   RemoteKind.youtube => throw StateError(
     'YouTube is served by youtubeSourceProvider',
   ),
+  // Drive is ordinary HTTP once a token is in hand, but the token has to be
+  // stored when it is renewed and mpv has to be told about the header, so it
+  // comes through driveSourceFor instead.
+  RemoteKind.drive => throw StateError('Drive is served by driveSourceFor'),
 };
+
+/// Builds a Drive client that saves its renewed session and registers the
+/// bearer header mpv needs to open a Drive stream.
+DriveSource driveSourceFor(Ref ref, RemoteAccount account) {
+  final settings = ref.read(settingsProvider);
+  return DriveSource(
+    account,
+    onSession: (renewed) {
+      settings.upsertRemoteAccount(renewed);
+      registerDriveHeaders(renewed);
+    },
+  );
+}
+
+/// Teaches the player how to authorise a Drive stream URL.
+///
+/// Drive's download endpoint takes a bearer header and nothing else — no signed
+/// URL, no token in the query — so the header has to reach mpv when the queue
+/// is opened.
+void registerDriveHeaders(RemoteAccount account) {
+  final token = driveTokens(account)?.accessToken ?? '';
+  if (token.isEmpty) return;
+  PlayerService.remoteStreamHeaders['https://www.googleapis.com/drive/v3/'] =
+      driveStreamHeaders(token);
+}
+
+/// Runs the browser consent for a Drive account and stores the session.
+Future<RemoteAccount> connectDriveAccount(
+  WidgetRef ref,
+  RemoteAccount account,
+) async {
+  final oauth = GoogleOAuth(
+    clientId: driveClientId(account),
+    clientSecret: driveClientSecret(account),
+  );
+  final tokens = await oauth.authorize();
+  final connected = account.copyWith(
+    extra: {...account.extra, ...tokens.storage},
+  );
+  ref.read(settingsProvider).upsertRemoteAccount(connected);
+  registerDriveHeaders(connected);
+  ref.invalidate(remoteSongsProvider(connected.id));
+  return connected;
+}
 
 /// The application's own Telegram credentials, if this build has them.
 ///
@@ -845,6 +895,16 @@ final remoteSongsProvider =
 
       if (account.kind == RemoteKind.youtube) {
         return ref.watch(youtubeSourceProvider(accountId)).songs();
+      }
+
+      if (account.kind == RemoteKind.drive) {
+        final source = driveSourceFor(ref, account);
+        ref.onDispose(source.close);
+        final songs = await source.songs();
+        // The token may have been the stored one rather than a fresh one, in
+        // which case onSession never fired and mpv still needs the header.
+        registerDriveHeaders(account);
+        return songs;
       }
 
       if (account.kind == RemoteKind.telegram) {

@@ -20,6 +20,11 @@ enum RemoteKind {
     'youtube',
     'YouTube Music',
     'Search and playlists via yt-dlp',
+  ),
+  drive(
+    'drive',
+    'Google Drive',
+    'Music kept in Drive — needs a Google client ID',
   );
 
   const RemoteKind(this.storageKey, this.label, this.description);
@@ -143,7 +148,9 @@ class RemoteAccount {
 
   String get title => displayName?.trim().isNotEmpty == true
       ? displayName!.trim()
-      : ((kind == RemoteKind.telegram || kind == RemoteKind.youtube)
+      : ((kind == RemoteKind.telegram ||
+                kind == RemoteKind.youtube ||
+                kind == RemoteKind.drive)
             ? kind.label
             : '${kind.label} · $host');
 
@@ -156,6 +163,9 @@ class RemoteAccount {
     // Nothing to fill in: yt-dlp needs no account, and the search works before
     // any playlist has been added.
     RemoteKind.youtube => true,
+    // No server and no password: Google issues the credentials, and the setup
+    // screen is what refuses to sign in without a client ID.
+    RemoteKind.drive => (extra['client_id']?.trim().isNotEmpty ?? false),
     _ => normalizedUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty,
   };
 
@@ -169,5 +179,8 @@ class RemoteAccount {
     RemoteKind.telegram => extra['session'] == 'ready',
     // Anonymous by default; cookies only widen what is visible.
     RemoteKind.youtube => true,
+    // Google's access tokens last an hour, so what counts is holding a refresh
+    // token — the source trades it for a fresh one when it needs to.
+    RemoteKind.drive => (extra['refresh_token']?.isNotEmpty ?? false),
   };
 }

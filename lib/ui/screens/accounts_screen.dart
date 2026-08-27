@@ -38,7 +38,7 @@ class AccountsScreen extends ConsumerWidget {
             const EmptyState(
               icon: Icons.cloud_off_rounded,
               title: 'No servers yet',
-              message: 'Add a server, a Telegram account or YouTube Music.',
+              message: 'Add a server, Telegram, YouTube Music or Drive.',
             )
           else
             for (final account in accounts) _AccountTile(account: account),
@@ -53,6 +53,7 @@ class AccountsScreen extends ConsumerWidget {
                   RemoteKind.navidrome => Icons.dns_rounded,
                   RemoteKind.telegram => Icons.send_rounded,
                   RemoteKind.youtube => Icons.smart_display_outlined,
+            RemoteKind.drive => Icons.cloud_rounded,
                 }),
                 title: Text(kind.label),
                 subtitle: Text(kind.description),
@@ -60,6 +61,7 @@ class AccountsScreen extends ConsumerWidget {
                 onTap: () => switch (kind) {
                   RemoteKind.telegram => openTelegramSetup(context),
                   RemoteKind.youtube => openYoutubeSetup(context),
+                  RemoteKind.drive => openDriveSetup(context),
                   _ => showRemoteAccountSheet(context, kind: kind),
                 },
               ),
@@ -89,6 +91,7 @@ class _AccountTile extends ConsumerWidget {
             RemoteKind.navidrome => Icons.dns_rounded,
             RemoteKind.telegram => Icons.send_rounded,
             RemoteKind.youtube => Icons.smart_display_outlined,
+            RemoteKind.drive => Icons.cloud_rounded,
           },
           color: theme.colorScheme.primary,
         ),
@@ -106,6 +109,9 @@ class _AccountTile extends ConsumerWidget {
               RemoteKind.youtube =>
                 '${youtubeSourceUrls(account).length} links · '
                     '${list.length} tracks',
+              RemoteKind.drive => account.isAuthenticated
+                  ? '${list.length} tracks'
+                  : 'Not signed in',
               _ => '${account.username} · ${list.length} tracks',
             },
           ),
@@ -133,6 +139,8 @@ class _AccountTile extends ConsumerWidget {
                   openTelegramSetup(context, accountId: account.id),
                 RemoteKind.youtube =>
                   openYoutubeSetup(context, accountId: account.id),
+                RemoteKind.drive =>
+                  openDriveSetup(context, accountId: account.id),
                 _ => showRemoteAccountSheet(
                   context,
                   kind: account.kind,

@@ -160,13 +160,36 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
+  /// Headers to send when opening a remote stream, keyed by URL prefix.
+  ///
+  /// Most backends sign the URL itself, so this stays empty for them. Google
+  /// Drive cannot: its download endpoint only accepts a bearer header, so the
+  /// Drive source registers one here and mpv carries it.
+  ///
+  /// ponytail: a plain prefix map, because exactly one backend needs it. The
+  /// ceiling is that headers are baked into each Media when the queue is
+  /// opened, so a Drive queue still playing an hour later will hit expired
+  /// tokens on its later tracks; reopening the queue fixes it. Per-track
+  /// re-resolution is the upgrade if that ever bites.
+  static final Map<String, Map<String, String>> remoteStreamHeaders = {};
+
   /// A song's path is either a file on disk or, for a remote source, an
   /// already-signed stream URL. mpv plays both; only the local case needs the
   /// `file://` scheme and escaping.
   static Media mediaFor(Song song) {
     final path = song.path;
     final remote = path.startsWith('http://') || path.startsWith('https://');
-    return Media(remote ? path : 'file://${Uri.encodeFull(path)}');
+    if (!remote) return Media('file://${Uri.encodeFull(path)}');
+    return Media(path, httpHeaders: headersForUrl(path));
+  }
+
+  /// The registered headers whose prefix matches [url], or null for none.
+  static Map<String, String>? headersForUrl(String url) {
+    for (final MapEntry(key: prefix, value: headers)
+        in remoteStreamHeaders.entries) {
+      if (url.startsWith(prefix)) return headers;
+    }
+    return null;
   }
 
   Playlist _playlist() =>

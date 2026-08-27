@@ -123,3 +123,35 @@ check session cookies. So:
 
 Keeping yt-dlp current is what fixes playback when YouTube changes something;
 that is a job for your package manager, not a PixelPlayer release.
+
+## Google Drive
+
+Drive is a filing cabinet, not a music server. It knows a file's name, size and
+folder and nothing about what is inside, so the library is derived from the
+layout:
+
+- the folder a track sits in becomes its **album**
+- the folder above that becomes the **artist**
+- the file name becomes the **title**, with a leading track number and an
+  `Artist - Title` prefix understood
+
+Track length appears once a track plays, because Drive does not report one, and
+there are no covers — those live inside the files. Playback streams straight
+from Drive with a bearer header that mpv carries; nothing is downloaded first.
+
+Set up a client once, because Google issues OAuth credentials per project:
+
+1. In the Google Cloud console, create a project and enable the **Drive API**.
+2. Create an OAuth client of type **Desktop app**.
+3. Add exactly this redirect URI: `http://127.0.0.1:8890`
+4. Paste the client ID and secret into Accounts → Google Drive, then sign in.
+
+The permission requested is `drive.readonly` — nothing here can modify a file.
+The secret Google issues alongside the client ID is not really secret for a
+desktop app, which is why the flow also uses PKCE; Google's token endpoint just
+insists on having it.
+
+Optionally give a folder id to scan only that folder. Note the ceiling on a
+long session: stream headers are set when a queue is opened, so a Drive queue
+still playing an hour later hits expired tokens on its later tracks — reopening
+the queue fixes it.

@@ -12,6 +12,7 @@ import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/remote_browse_screen.dart';
 import 'screens/telegram_setup_screen.dart';
+import 'screens/drive_setup_screen.dart';
 import 'screens/youtube_setup_screen.dart';
 import 'screens/smart_playlist_screen.dart';
 import 'screens/settings_screen.dart';
@@ -62,6 +63,9 @@ void openTelegramSetup(BuildContext context, {String? accountId}) =>
 
 void openYoutubeSetup(BuildContext context, {String? accountId}) =>
     _push(context, YoutubeSetupScreen(accountId: accountId));
+
+void openDriveSetup(BuildContext context, {String? accountId}) =>
+    _push(context, DriveSetupScreen(accountId: accountId));
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());

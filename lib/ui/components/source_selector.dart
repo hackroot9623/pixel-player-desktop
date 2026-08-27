@@ -22,6 +22,7 @@ class SourceSelector extends ConsumerWidget {
     RemoteKind.navidrome => Icons.dns_rounded,
     RemoteKind.telegram => Icons.send_rounded,
     RemoteKind.youtube => Icons.smart_display_outlined,
+    RemoteKind.drive => Icons.cloud_rounded,
   };
 
   @override

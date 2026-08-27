@@ -159,12 +159,31 @@ distributions do not package it; Manjaro has it in the AUR only) and an api_id/a
 pair from my.telegram.org, which Telegram issues per application. The setup screen says so
 and takes a path to the `.so` if it is not on the default library path.
 
-Not started, and each blocked on something a test cannot supply:
-- **Google Drive** needs an OAuth client id and an interactive consent flow. The API layer
-  is portable, but nothing can be verified without a real Google project.
-- **NetEase / QQMusic** are unofficial reverse-engineered endpoints (~1800 lines) that also
-  need region-restricted access to exercise. Porting them blind would ship code that has
-  never once been run.
+**Google Drive** is in, as an ordinary `RemoteSource` once a token is in hand. Google
+issues OAuth credentials per project, so the user registers a Desktop app client and signs
+in through the browser: authorization code with PKCE, a loopback redirect on port 8890,
+and the read-only `drive.readonly` scope.
+
+The interesting part is that Drive stores files, not music. There are no tags, no durations
+and no cover art in its metadata, so the library is derived from the layout — album from the
+containing folder, artist from the folder above it, title from the file name (with a leading
+track number and an `Artist - Title` prefix understood). A folder name always beats a guess
+from a file name.
+
+Streaming needed one new seam. Drive's download endpoint takes a bearer header and nothing
+else — no signed URL, no token in the query — so `PlayerService.remoteStreamHeaders` maps a
+URL prefix to headers and `mediaFor` hands them to mpv. Known ceiling: headers are baked in
+when a queue is opened, so a queue still playing an hour later hits expired tokens on its
+later tracks.
+
+**Spotify** was built and then removed. It cannot supply audio at all, so it could only
+import playlist metadata and act as a remote for a Spotify player already sitting next to
+the app — neither earned its place, and both needed credentials the user had to register.
+
+Not started:
+- **NetEase / QQMusic** are unofficial reverse-engineered endpoints (~1800 lines) that need
+  region-restricted access to exercise. Porting them blind would ship code that has never
+  once been run.
 
 ### Desktop-only surface (no Android counterpart)
 
