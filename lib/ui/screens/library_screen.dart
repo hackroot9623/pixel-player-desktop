@@ -181,7 +181,10 @@ class _TabContent extends ConsumerWidget {
                 subtitle: 'Built from your listening, and kept up to date',
               ),
               SizedBox(
-                height: 210,
+                // The card is 168 wide and its artwork is square, so the column
+                // needs 12 padding + 156 art + 10 + two lines of label. That
+                // came to 214 in a 210 box — this leaves room to spare.
+                height: 228,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: smart.length,

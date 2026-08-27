@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 /// Ported from `ui/theme/Type.kt`.
 ///
@@ -46,7 +45,9 @@ final appTextTheme = TextTheme(
     letterSpacing: 0.15,
   ),
   titleSmall: rounded(
-    weight: FontWeight.w500,
+    // w500 on the phone. A desktop sits further from the eye than a phone and
+    // renders at 1x, so list titles need the extra weight to hold up.
+    weight: FontWeight.w600,
     size: 14,
     height: 20,
     letterSpacing: 0.1,
@@ -64,10 +65,13 @@ final appTextTheme = TextTheme(
     letterSpacing: 0.25,
   ),
   bodySmall: rounded(
-    weight: FontWeight.w400,
-    size: 12,
+    // 12/w400 is the phone metric; secondary lines were disappearing against a
+    // light surface, so this is a point larger and a step heavier. The line box
+    // stays at 16: raising it too pushed the fixed-height cards into overflow.
+    weight: FontWeight.w500,
+    size: 13,
     height: 16,
-    letterSpacing: 0.4,
+    letterSpacing: 0.3,
   ),
   labelLarge: rounded(
     weight: FontWeight.w500,
@@ -83,36 +87,30 @@ final appTextTheme = TextTheme(
   ),
   labelSmall: rounded(
     weight: FontWeight.w500,
-    size: 11,
+    size: 12,
     height: 16,
-    letterSpacing: 0.5,
+    letterSpacing: 0.4,
   ),
 );
 
-/// `ExpTitleTypography` from Type.kt — Montserrat, used for the oversized
-/// expressive screen titles. The Android app stretches the glyphs horizontally
+/// `ExpTitleTypography` from Type.kt — the oversized expressive screen titles.
+/// The Android app stretches the glyphs horizontally
 /// (`TextGeometricTransform(scaleX)`); we apply the same via a Transform on the
 /// widget side where it matters, keeping the metrics here.
-final expDisplayLarge = GoogleFonts.montserrat(
-  fontWeight: FontWeight.w600,
-  fontSize: 60,
-  letterSpacing: -0.02 * 60,
-  height: 0.95,
-);
+///
+/// Android sets these in Montserrat. These used `google_fonts`, which fetches
+/// the family over the network on first use and falls back silently to a
+/// platform font when it cannot — so the hero title rendered in an unpredictable
+/// face, at a weight far too light to read over a tinted banner. Google Sans
+/// Flex already ships with the app, so these use it and stay legible offline.
+final expDisplayLarge = rounded(weight: FontWeight.w700, size: 60)
+    .copyWith(letterSpacing: -0.02 * 60, height: 0.95);
 
-final expDisplayMedium = GoogleFonts.montserrat(
-  fontWeight: FontWeight.w400,
-  fontSize: 50,
-  letterSpacing: -0.02 * 50,
-  height: 0.95,
-);
+final expDisplayMedium = rounded(weight: FontWeight.w700, size: 50)
+    .copyWith(letterSpacing: -0.02 * 50, height: 0.95);
 
-final expTitleMedium = GoogleFonts.montserrat(
-  fontWeight: FontWeight.w700,
-  fontSize: 32,
-  letterSpacing: -0.02 * 32,
-  height: 0.95,
-);
+final expTitleMedium = rounded(weight: FontWeight.w700, size: 32)
+    .copyWith(letterSpacing: -0.02 * 32, height: 0.95);
 
 /// Horizontal stretch factors from `TextGeometricTransform(scaleX = …)`.
 const expDisplayLargeScaleX = 1.5;

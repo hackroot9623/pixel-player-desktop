@@ -6,6 +6,7 @@ import '../../state/providers.dart';
 import '../components/album_art.dart';
 import 'ai_playlist_sheet.dart';
 import '../components/collage.dart';
+import '../theme/contrast.dart';
 import '../components/common.dart';
 import '../components/library_widgets.dart';
 import '../navigation.dart';
@@ -119,6 +120,31 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
+/// The home banner's gradient stops.
+///
+/// Tinted from the palette — which comes from the album art — but only as far as
+/// the text on top can still be read. Both texts sit on these stops, so the
+/// weaker of the two pairings sets the limit.
+///
+/// Full-strength container roles were the original bug here: a container role
+/// is only guaranteed to contrast with its own `on` colour, and with some
+/// palettes `primaryContainer` lands within a fraction of a percent of
+/// `onSurface`, which made the greeting invisible.
+List<Color> bannerGradient(ColorScheme scheme) => [
+  legibleTint(
+    scheme.surface,
+    scheme.primaryContainer,
+    text: scheme.onSurfaceVariant,
+  ),
+  legibleTint(
+    scheme.surface,
+    scheme.secondaryContainer,
+    text: scheme.onSurfaceVariant,
+    strength: 0.3,
+  ),
+  scheme.surface,
+];
+
 class _GradientHeader extends StatelessWidget {
   const _GradientHeader({
     required this.songCount,
@@ -133,17 +159,14 @@ class _GradientHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final light = scheme.brightness == Brightness.light;
     return FlexibleSpaceBar(
       background: DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              scheme.primaryContainer,
-              scheme.secondaryContainer.withValues(alpha: 0.6),
-              scheme.surface,
-            ],
+            colors: bannerGradient(scheme),
           ),
         ),
         child: Stack(
@@ -157,7 +180,9 @@ class _GradientHeader extends StatelessWidget {
               width: 520,
               child: AlbumArtScatter(
                 artworkPaths: artworkPaths,
-                opacity: 0.85,
+                // Album art is full-contrast imagery; against a pale banner it
+                // has to sit further back to stay decoration.
+                opacity: light ? 0.55 : 0.85,
               ),
             ),
             Padding(
@@ -170,13 +195,19 @@ class _GradientHeader extends StatelessWidget {
                 _greeting(),
                 style: expDisplayMedium,
                 scaleX: 1.0,
-                color: scheme.onPrimaryContainer,
+                // onPrimaryContainer only reads on primaryContainer, and the
+                // gradient has faded most of the way to the surface by the time
+                // it reaches the text — which is what made the greeting
+                // green-on-green.
+                color: scheme.onSurface,
               ),
               const SizedBox(height: 6),
               Text(
                 '${plural(songCount, 'song', 'songs')} in your library',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: scheme.onPrimaryContainer.withValues(alpha: 0.8),
+                  // Was onPrimaryContainer at 80%: a low-contrast colour made
+                  // fainter still.
+                  color: scheme.onSurfaceVariant,
                 ),
               ),
             ],
@@ -263,6 +294,7 @@ class _MixRow extends ConsumerWidget {
         separatorBuilder: (_, _) => const SizedBox(width: 12),
         itemBuilder: (context, i) {
           final song = songs[i];
+          final theme = Theme.of(context);
           return SizedBox(
             width: 200,
             child: Material
@@ -300,18 +332,24 @@ class _MixRow extends ConsumerWidget {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    // Both lines take their colour from the scheme explicitly.
+                    // The title previously relied on the colour baked into
+                    // textTheme, which is the one place these labels could end
+                    // up disagreeing with the rest of the theme.
                     Text(
                       song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                      ),
                     ),
                     Text(
                       song.displayArtist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -344,8 +382,18 @@ class _RecentGrid extends ConsumerWidget {
     itemCount: songs.length,
     itemBuilder: (context, i) {
       final song = songs[i];
+      // Tinted from this track's own cover: the tile separates from the page by
+      // colour, which works the same way in both themes, where an outline on
+      // every tile only added noise.
+      final base = Theme.of(context).colorScheme;
+      final tint = ref
+          .watch(artworkSchemesProvider(song.albumArtPath))
+          .valueOrNull;
+      final scheme = tint == null
+          ? base
+          : (base.brightness == Brightness.light ? tint.$1 : tint.$2);
       return Material(
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
+        color: scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(shapeMedium),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -363,14 +411,20 @@ class _RecentGrid extends ConsumerWidget {
                       song.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        color: scheme.onSecondaryContainer,
+                      ),
                     ),
                     Text(
                       song.displayArtist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        // The on-colour of the container it sits in, so the
+                        // pairing holds whatever the cover looks like.
+                        color: scheme.onSecondaryContainer.withValues(
+                          alpha: 0.85,
+                        ),
                       ),
                     ),
                   ],

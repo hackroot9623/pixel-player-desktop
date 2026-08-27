@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -618,30 +620,48 @@ class SmartPlaylistCard extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Stack(
-                children: [
-                  AlbumArtCollage(
-                    paths: [for (final song in songs.take(4)) song.albumArtPath],
-                    size: size - 12,
-                    radius: shapeLarge,
-                  ),
-                  Positioned(
-                    left: 8,
-                    top: 8,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: theme.colorScheme.surface.withValues(alpha: 0.85),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        _icons[rule] ?? Icons.auto_awesome_rounded,
-                        size: 16,
-                        color: theme.colorScheme.primary,
-                      ),
-                    ),
-                  ),
-                ],
+              // The artwork takes whatever height is left after the two labels,
+              // rather than a fixed square that assumes the row is tall enough.
+              // The row it lives in was already a few pixels short of the fixed
+              // square, so any change to the label metrics tipped it into
+              // overflow; now the card fits whatever height it is given.
+              Flexible(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final side = constraints.maxHeight.isFinite
+                        ? math.min(size - 12, constraints.maxHeight)
+                        : size - 12;
+                    return Stack(
+                      children: [
+                        AlbumArtCollage(
+                          paths: [
+                            for (final song in songs.take(4)) song.albumArtPath,
+                          ],
+                          size: side,
+                          radius: shapeLarge,
+                        ),
+                        Positioned(
+                          left: 8,
+                          top: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.surface.withValues(
+                                alpha: 0.85,
+                              ),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              _icons[rule] ?? Icons.auto_awesome_rounded,
+                              size: 16,
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
               const SizedBox(height: 10),
               Text(

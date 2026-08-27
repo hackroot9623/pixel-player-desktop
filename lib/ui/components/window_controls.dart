@@ -350,22 +350,70 @@ class WindowResizeArea extends ConsumerWidget {
 /// pushed on the root navigator (the full player) and dialogs would otherwise
 /// cover the strip, leaving no way to move or close the window without
 /// navigating back first.
-class WindowChrome extends ConsumerWidget {
+/// Corner radius of the window when we draw our own decorations.
+const windowCornerRadius = 14.0;
+
+class WindowChrome extends ConsumerStatefulWidget {
   const WindowChrome({super.key, required this.child});
 
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<WindowChrome> createState() => _WindowChromeState();
+}
+
+class _WindowChromeState extends ConsumerState<WindowChrome>
+    with WindowListener {
+  /// A maximised window must have square corners: rounding them leaves four
+  /// transparent notches over whatever is behind the screen edge.
+  bool _maximized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    windowManager.addListener(this);
+    windowManager.isMaximized().then((value) {
+      if (mounted) setState(() => _maximized = value);
+    });
+  }
+
+  @override
+  void dispose() {
+    windowManager.removeListener(this);
+    super.dispose();
+  }
+
+  @override
+  void onWindowMaximize() => setState(() => _maximized = true);
+
+  @override
+  void onWindowUnmaximize() => setState(() => _maximized = false);
+
+  @override
+  void onWindowEnterFullScreen() => setState(() => _maximized = true);
+
+  @override
+  void onWindowLeaveFullScreen() => setState(() => _maximized = false);
+
+  @override
+  Widget build(BuildContext context) {
+    final child = widget.child;
     final custom = ref.watch(
       settingsProvider.select((settings) => settings.useCustomTitleBar),
     );
     // With system decorations there is nothing to add, and no reason to put
-    // another layer between the app and the view.
+    // another layer between the app and the view: the desktop already rounds
+    // its own frames.
     if (!custom) return child;
 
-    return WindowResizeArea(
-      child: Column(
+    final radius = _maximized
+        ? BorderRadius.zero
+        : BorderRadius.circular(windowCornerRadius);
+
+    return ClipRRect(
+      borderRadius: radius,
+      child: WindowResizeArea(
+        child: Column(
         children: [
           // Above the root navigator there is no Material and no Overlay, which
           // the strip's InkWells and Tooltips both require — the controls
@@ -383,8 +431,9 @@ class WindowChrome extends ConsumerWidget {
               ),
             ),
           ),
-          Expanded(child: child),
-        ],
+            Expanded(child: child),
+          ],
+        ),
       ),
     );
   }

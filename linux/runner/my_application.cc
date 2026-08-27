@@ -58,11 +58,24 @@ static void my_application_activate(GApplication* application) {
   fl_dart_project_set_dart_entrypoint_arguments(
       project, self->dart_entrypoint_arguments);
 
+  // Rounded window corners need the compositor to composite our alpha, which
+  // needs an RGBA visual on the window and a fully transparent view
+  // background. Without both, the corners the Dart side clips away are painted
+  // black instead of showing what is behind the window.
+  //
+  // Not every compositor offers an RGBA visual; when none is available the
+  // window simply stays opaque and square, which is why this is a soft check
+  // rather than a requirement.
+  GdkScreen* window_screen = gtk_widget_get_screen(GTK_WIDGET(window));
+  GdkVisual* rgba_visual = gdk_screen_get_rgba_visual(window_screen);
+  if (rgba_visual != nullptr && gdk_screen_is_composited(window_screen)) {
+    gtk_widget_set_visual(GTK_WIDGET(window), rgba_visual);
+    gtk_widget_set_app_paintable(GTK_WIDGET(window), TRUE);
+  }
+
   FlView* view = fl_view_new(project);
   GdkRGBA background_color;
-  // Background defaults to black, override it here if necessary, e.g. #00000000
-  // for transparent.
-  gdk_rgba_parse(&background_color, "#000000");
+  gdk_rgba_parse(&background_color, "#00000000");
   fl_view_set_background_color(view, &background_color);
   gtk_widget_show(GTK_WIDGET(view));
   gtk_container_add(GTK_CONTAINER(window), GTK_WIDGET(view));

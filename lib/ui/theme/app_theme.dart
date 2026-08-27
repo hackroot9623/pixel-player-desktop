@@ -27,6 +27,8 @@ ThemeData buildTheme({
                 ? darkColorScheme
                 : lightColorScheme));
 
+  final light = scheme.brightness == Brightness.light;
+
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
@@ -64,7 +66,9 @@ ThemeData buildTheme({
     ),
     listTileTheme: const ListTileThemeData(shape: mediumShape),
     navigationRailTheme: NavigationRailThemeData(
-      backgroundColor: scheme.surface,
+      // Same colour as the scaffold left the rail with no edge at all in light
+      // mode; one step of tone separates it without a divider.
+      backgroundColor: light ? scheme.surfaceContainerLow : scheme.surface,
       indicatorColor: scheme.secondaryContainer,
       labelType: NavigationRailLabelType.all,
       selectedLabelTextStyle: appTextTheme.labelMedium?.copyWith(

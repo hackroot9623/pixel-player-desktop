@@ -641,6 +641,43 @@ final albumArtSchemeProvider = FutureProvider<(ColorScheme, ColorScheme)?>((
   return result;
 });
 
+/// The light/dark scheme pair for one specific cover, for tiles that colour
+/// themselves from their own artwork rather than from the playing track.
+///
+/// Shares [_schemeCache] with [albumArtSchemeProvider], so a cover that has
+/// already themed the app costs nothing here. Returns null when there is no
+/// artwork, or when the user has turned album-art colours off — the caller then
+/// falls back to the plain surface roles.
+final artworkSchemesProvider =
+    FutureProvider.family<(ColorScheme, ColorScheme)?, String?>((
+      ref,
+      artPath,
+    ) async {
+      final settings = ref.watch(settingsProvider);
+      if (!settings.useAlbumArtColors || artPath == null) return null;
+
+      final variant = settings.paletteStyle;
+      final key = '$artPath|${variant.name}';
+      final cached = _schemeCache[key];
+      if (cached != null) return cached;
+
+      if (!File(artPath).existsSync()) return null;
+      final image = FileImage(File(artPath));
+      final light = await ColorScheme.fromImageProvider(
+        provider: image,
+        dynamicSchemeVariant: variant,
+      );
+      final dark = await ColorScheme.fromImageProvider(
+        provider: image,
+        brightness: Brightness.dark,
+        dynamicSchemeVariant: variant,
+      );
+      final result = (light, dark);
+      if (_schemeCache.length > 64) _schemeCache.clear();
+      _schemeCache[key] = result;
+      return result;
+    });
+
 // ------------------------------------------------------------------- stats
 
 class LibraryStats {
