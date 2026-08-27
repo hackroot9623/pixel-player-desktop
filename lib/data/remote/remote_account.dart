@@ -10,6 +10,11 @@ enum RemoteKind {
     'navidrome',
     'Navidrome',
     'Subsonic-compatible server — Airsonic and Gonic work too',
+  ),
+  telegram(
+    'telegram',
+    'Telegram',
+    'Audio from your chats — needs TDLib and an api_id',
   );
 
   const RemoteKind(this.storageKey, this.label, this.description);
@@ -42,6 +47,7 @@ class RemoteAccount {
     this.accessToken,
     this.userId,
     this.displayName,
+    this.extra = const {},
   });
 
   factory RemoteAccount.fromJson(Map<String, dynamic> json) => RemoteAccount(
@@ -54,6 +60,11 @@ class RemoteAccount {
     accessToken: json['accessToken'] as String?,
     userId: json['userId'] as String?,
     displayName: json['displayName'] as String?,
+    extra: {
+      for (final MapEntry(:key, :value)
+          in (json['extra'] as Map? ?? const {}).entries)
+        '$key': '$value',
+    },
   );
 
   final String id;
@@ -71,6 +82,11 @@ class RemoteAccount {
   /// What to call this account in the UI; falls back to the host.
   final String? displayName;
 
+  /// Backend-specific settings that do not fit the server/user/password shape:
+  /// Telegram's `api_id`, `api_hash`, chosen chats and library path live here.
+  /// A map beats four more nullable fields that only one backend ever reads.
+  final Map<String, String> extra;
+
   Map<String, dynamic> toJson() => {
     'id': id,
     'kind': kind.storageKey,
@@ -80,6 +96,7 @@ class RemoteAccount {
     if (accessToken != null) 'accessToken': accessToken,
     if (userId != null) 'userId': userId,
     if (displayName != null) 'displayName': displayName,
+    if (extra.isNotEmpty) 'extra': extra,
   };
 
   RemoteAccount copyWith({
@@ -89,6 +106,7 @@ class RemoteAccount {
     String? accessToken,
     String? userId,
     String? displayName,
+    Map<String, String>? extra,
   }) => RemoteAccount(
     id: id,
     kind: kind,
@@ -98,6 +116,7 @@ class RemoteAccount {
     accessToken: accessToken ?? this.accessToken,
     userId: userId ?? this.userId,
     displayName: displayName ?? this.displayName,
+    extra: extra ?? this.extra,
   );
 
   /// The server URL with a scheme and no trailing slash.
@@ -119,15 +138,24 @@ class RemoteAccount {
 
   String get title => displayName?.trim().isNotEmpty == true
       ? displayName!.trim()
-      : '${kind.label} · $host';
+      : (kind == RemoteKind.telegram ? kind.label : '${kind.label} · $host');
 
-  bool get isComplete =>
-      normalizedUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty;
+  bool get isComplete => switch (kind) {
+    // Telegram authenticates against Telegram itself: what it needs up front is
+    // an api_id/api_hash pair from my.telegram.org, not a server address.
+    RemoteKind.telegram =>
+      (extra['apiId']?.isNotEmpty ?? false) &&
+          (extra['apiHash']?.isNotEmpty ?? false),
+    _ => normalizedUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty,
+  };
 
   /// Jellyfin needs a token and a user id before it can query anything.
   bool get isAuthenticated => switch (kind) {
     RemoteKind.jellyfin =>
       (accessToken?.isNotEmpty ?? false) && (userId?.isNotEmpty ?? false),
     RemoteKind.navidrome => isComplete,
+    // TDLib keeps the session on disk, so "signed in" is whether that session
+    // is still valid — which only TDLib can answer, at startup.
+    RemoteKind.telegram => isComplete && extra['session'] == 'ready',
   };
 }

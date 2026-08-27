@@ -142,11 +142,26 @@ header, with `api_key` in the URL only for the stream, which mpv fetches itself.
 Remote libraries are held in memory, not written to the local database: `replaceLibrary`
 would drop them on the next rescan, and a server's catalogue is not ours to mirror.
 
+**Telegram** is in, against TDLib's JSON interface rather than its generated bindings:
+`libtdjson` exposes the whole API as four C functions taking JSON, which is a far smaller
+FFI surface than the Java classes the Android app links. `TdlibTransport` is the seam — the
+real one is `dart:ffi`, and the tests use a fake, so the login state machine, the
+request/reply correlation and the audio mapping are all under test without the native
+library present.
+
+Playback differs from the phone. `TelegramStreamProxy` serves a partial download over
+localhost so ExoPlayer has a URL; here the file is downloaded through TDLib first and then
+played as an ordinary local file, with the next track fetched in the background. Honest
+rather than seamless: a cold track waits for its download.
+
+Two things the user has to supply, and neither can be shipped: TDLib itself (most
+distributions do not package it; Manjaro has it in the AUR only) and an api_id/api_hash
+pair from my.telegram.org, which Telegram issues per application. The setup screen says so
+and takes a path to the `.so` if it is not on the default library path.
+
 Not started, and each blocked on something a test cannot supply:
 - **Google Drive** needs an OAuth client id and an interactive consent flow. The API layer
   is portable, but nothing can be verified without a real Google project.
-- **Telegram** needs TDLib — a native library and an MTProto session, phone number and all.
-  The Android side is ~1700 lines against a dependency this repo does not have.
 - **NetEase / QQMusic** are unofficial reverse-engineered endpoints (~1800 lines) that also
   need region-restricted access to exercise. Porting them blind would ship code that has
   never once been run.

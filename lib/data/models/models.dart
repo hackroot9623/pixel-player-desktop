@@ -82,7 +82,13 @@ class Song {
 
   Duration get durationValue => Duration(milliseconds: duration);
 
-  Song copyWith({bool? isFavorite, String? lyrics, String? albumArtPath}) => Song(
+  Song copyWith({
+    bool? isFavorite,
+    String? lyrics,
+    String? albumArtPath,
+    // A Telegram track has no path until its file is downloaded.
+    String? path,
+  }) => Song(
     id: id,
     title: title,
     artist: artist,
@@ -91,7 +97,7 @@ class Song {
     album: album,
     albumId: albumId,
     albumArtist: albumArtist,
-    path: path,
+    path: path ?? this.path,
     albumArtPath: albumArtPath ?? this.albumArtPath,
     duration: duration,
     genre: genre,

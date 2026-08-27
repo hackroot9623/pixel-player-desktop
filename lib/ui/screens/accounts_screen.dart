@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/remote/remote_account.dart';
 import '../../data/remote/remote_source.dart';
+import '../../data/remote/telegram/telegram_source.dart';
 import '../../state/providers.dart';
 import '../components/common.dart';
 import '../navigation.dart';
@@ -46,15 +47,17 @@ class AccountsScreen extends ConsumerWidget {
           for (final kind in RemoteKind.values)
             Card(
               child: ListTile(
-                leading: Icon(
-                  kind == RemoteKind.jellyfin
-                      ? Icons.movie_filter_rounded
-                      : Icons.dns_rounded,
-                ),
+                leading: Icon(switch (kind) {
+                  RemoteKind.jellyfin => Icons.movie_filter_rounded,
+                  RemoteKind.navidrome => Icons.dns_rounded,
+                  RemoteKind.telegram => Icons.send_rounded,
+                }),
                 title: Text(kind.label),
                 subtitle: Text(kind.description),
                 trailing: const Icon(Icons.add_rounded),
-                onTap: () => showRemoteAccountSheet(context, kind: kind),
+                onTap: () => kind == RemoteKind.telegram
+                    ? openTelegramSetup(context)
+                    : showRemoteAccountSheet(context, kind: kind),
               ),
             ),
         ],
@@ -77,9 +80,11 @@ class _AccountTile extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: Icon(
-          account.kind == RemoteKind.jellyfin
-              ? Icons.movie_filter_rounded
-              : Icons.dns_rounded,
+          switch (account.kind) {
+            RemoteKind.jellyfin => Icons.movie_filter_rounded,
+            RemoteKind.navidrome => Icons.dns_rounded,
+            RemoteKind.telegram => Icons.send_rounded,
+          },
           color: theme.colorScheme.primary,
         ),
         title: Text(account.title),
@@ -89,7 +94,10 @@ class _AccountTile extends ConsumerWidget {
             error: (error, _) => error is RemoteException
                 ? error.message
                 : 'Could not reach the server',
-            data: (list) => '${account.username} · ${list.length} tracks',
+            data: (list) => account.kind == RemoteKind.telegram
+                ? '${telegramChatIds(account).length} chats · '
+                      '${list.length} tracks'
+                : '${account.username} · ${list.length} tracks',
           ),
           maxLines: 2,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -110,11 +118,13 @@ class _AccountTile extends ConsumerWidget {
             IconButton(
               tooltip: 'Edit',
               icon: const Icon(Icons.edit_rounded),
-              onPressed: () => showRemoteAccountSheet(
-                context,
-                kind: account.kind,
-                existing: account,
-              ),
+              onPressed: () => account.kind == RemoteKind.telegram
+                  ? openTelegramSetup(context, accountId: account.id)
+                  : showRemoteAccountSheet(
+                      context,
+                      kind: account.kind,
+                      existing: account,
+                    ),
             ),
             IconButton(
               tooltip: 'Remove',

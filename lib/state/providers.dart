@@ -17,6 +17,8 @@ import '../data/prefs/settings.dart';
 import '../data/remote/jellyfin_source.dart';
 import '../data/remote/navidrome_source.dart';
 import '../data/remote/remote_library.dart';
+import '../data/remote/telegram/tdlib_client.dart';
+import '../data/remote/telegram/telegram_source.dart';
 import '../data/remote/remote_account.dart';
 import '../data/remote/remote_source.dart';
 import '../data/scanner/library_scanner.dart';
@@ -700,7 +702,98 @@ final artworkSchemesProvider =
 RemoteSource remoteSourceFor(RemoteAccount account) => switch (account.kind) {
   RemoteKind.jellyfin => JellyfinSource(account),
   RemoteKind.navidrome => NavidromeSource(account),
+  // Telegram is not an HTTP server: it holds a TDLib session and needs an
+  // interactive login, so it lives behind telegramSourceProvider instead.
+  RemoteKind.telegram => throw StateError(
+    'Telegram is served by telegramSourceProvider',
+  ),
 };
+
+/// Where TDLib keeps its session and downloaded files.
+final telegramDirectoriesProvider =
+    Provider<({String database, String files})>((ref) {
+      final root = ref.watch(artworkDirProvider);
+      final base = p.join(p.dirname(root), 'telegram');
+      return (
+        database: p.join(base, 'db'),
+        files: p.join(base, 'files'),
+      );
+    });
+
+/// The live TDLib client for one account.
+///
+/// One per account and kept alive: TDLib holds a socket to Telegram and a
+/// session on disk, so tearing it down between screens would mean logging in
+/// again. It is started lazily, because creating it dials Telegram.
+final telegramClientProvider =
+    Provider.family<TdlibClient, String>((ref, accountId) {
+      final account = ref
+          .watch(remoteAccountsProvider)
+          .where((entry) => entry.id == accountId)
+          .firstOrNull;
+      if (account == null) {
+        throw const TdlibException('That Telegram account is gone.');
+      }
+      final dirs = ref.watch(telegramDirectoriesProvider);
+      final client = TdlibClient(
+        transport: FfiTdlibTransport.open(
+          explicitPath: account.extra['libraryPath'],
+        ),
+        apiId: int.tryParse(account.extra['apiId'] ?? '') ?? 0,
+        apiHash: account.extra['apiHash'] ?? '',
+        databaseDirectory: p.join(dirs.database, account.id),
+        filesDirectory: p.join(dirs.files, account.id),
+      );
+      client.start();
+      ref.onDispose(client.close);
+      return client;
+    });
+
+final telegramSourceProvider =
+    Provider.family<TelegramSource, String>((ref, accountId) {
+      final account = ref
+          .watch(remoteAccountsProvider)
+          .firstWhere((entry) => entry.id == accountId);
+      return TelegramSource(
+        account: account,
+        client: ref.watch(telegramClientProvider(accountId)),
+      );
+    });
+
+/// Downloads the file behind a Telegram song and plays the queue from it.
+///
+/// Telegram has no streamable URL — the Android app fakes one with a localhost
+/// proxy over a partial download. Here the file is fetched first and then handed
+/// to the player as an ordinary local file, and the next track is fetched in the
+/// background so a queue keeps moving.
+Future<void> playTelegramQueue(
+  WidgetRef ref,
+  List<Song> songs, {
+  int startIndex = 0,
+  void Function(double progress)? onProgress,
+}) async {
+  if (songs.isEmpty) return;
+  final accountId = ref.read(activeSourceProvider);
+  if (accountId == null) return;
+  final source = ref.read(telegramSourceProvider(accountId));
+
+  Future<Song> resolve(Song song) async {
+    if (song.path.isNotEmpty && File(song.path).existsSync()) return song;
+    final path = await source.download(song, onProgress: onProgress);
+    return song.copyWith(path: path);
+  }
+
+  final first = await resolve(songs[startIndex]);
+  final queue = [...songs]..[startIndex] = first;
+  await ref.read(playerProvider).playQueue(queue, startIndex: startIndex);
+
+  // Warm the next track so the gap between songs is not a download.
+  if (startIndex + 1 < songs.length) {
+    unawaited(
+      resolve(songs[startIndex + 1]).catchError((_) => songs[startIndex + 1]),
+    );
+  }
+}
 
 final remoteAccountsProvider = Provider<List<RemoteAccount>>(
   (ref) => ref.watch(settingsProvider).remoteAccounts,
@@ -718,6 +811,12 @@ final remoteSongsProvider =
           .where((entry) => entry.id == accountId)
           .firstOrNull;
       if (account == null) return const [];
+
+      if (account.kind == RemoteKind.telegram) {
+        // No sign-in step here: TDLib restores its own session, and the setup
+        // screen is what drives an interactive login.
+        return ref.watch(telegramSourceProvider(accountId)).songs();
+      }
 
       final source = remoteSourceFor(account);
       ref.onDispose(source.close);

@@ -20,6 +20,7 @@ class SourceSelector extends ConsumerWidget {
   IconData _iconFor(RemoteKind kind) => switch (kind) {
     RemoteKind.jellyfin => Icons.movie_filter_rounded,
     RemoteKind.navidrome => Icons.dns_rounded,
+    RemoteKind.telegram => Icons.send_rounded,
   };
 
   @override
