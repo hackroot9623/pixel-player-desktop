@@ -77,3 +77,28 @@ Telegram also needs TDLib (`libtdjson`), which most distributions do not
 package — build it from https://github.com/tdlib/td, or install a distribution
 package where one exists. If it is not on the default library path, the setup
 screen takes the path to the `.so`.
+
+## Building and releases
+
+CI builds all three desktop bundles on every push and publishes them to the
+[releases page](https://github.com/hackroot9623/pixel-player-desktop/releases):
+pushes to `master` refresh a rolling `latest` prerelease, and a `v*` tag cuts a
+versioned release.
+
+| Platform | Artifact | Install |
+| --- | --- | --- |
+| Linux | `pixelplayer-linux-x64.tar.gz` | Extract, run `./install.sh` (into `~/.local`, no root) |
+| Windows | `pixelplayer-windows-x64.zip` | Extract, run `pixelplay_desktop.exe` |
+| macOS | `pixelplayer-macos-arm64.zip` | Unzip, move to Applications, right-click → Open |
+
+Building locally needs the Flutter version pinned in the workflow, plus libmpv
+and sqlite3 development packages on Linux:
+
+```bash
+flutter build linux --release
+```
+
+Two caveats on the bundles. The macOS build is unsigned and un-notarised, so
+Gatekeeper needs the right-click → Open dance on first launch; signing needs an
+Apple Developer certificate. And macOS runners are Apple silicon, so that bundle
+is arm64 only — an Intel build would need a separate `macos-13` matrix entry.

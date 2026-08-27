@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=PixelPlayer
+GenericName=Music Player
+Comment=A beautiful, feature-rich music player
+Exec=pixelplay_desktop %U
+Icon=com.theveloper.pixelplay_desktop
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+Keywords=music;audio;player;playlist;
+MimeType=audio/mpeg;audio/flac;audio/x-flac;audio/mp4;audio/x-m4a;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/wav;audio/x-wav;
+StartupWMClass=pixelplay_desktop

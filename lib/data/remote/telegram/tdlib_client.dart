@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:ffi';
+import 'dart:io';
 
 import 'package:ffi/ffi.dart';
 
@@ -57,13 +58,26 @@ typedef _Execute = Pointer<Utf8> Function(Pointer<Utf8>);
 ///
 /// TDLib is not packaged on most distributions, so the search is deliberately
 /// broad before giving up with instructions.
-const tdlibSearchPaths = [
-  'libtdjson.so',
-  'libtdjson.so.1.8.0',
-  '/usr/lib/libtdjson.so',
-  '/usr/local/lib/libtdjson.so',
-  '/usr/lib/x86_64-linux-gnu/libtdjson.so',
-];
+List<String> get tdlibSearchPaths {
+  if (Platform.isWindows) {
+    return const ['tdjson.dll', 'libtdjson.dll'];
+  }
+  if (Platform.isMacOS) {
+    return const [
+      'libtdjson.dylib',
+      '/usr/local/lib/libtdjson.dylib',
+      // Homebrew's prefix on Apple silicon.
+      '/opt/homebrew/lib/libtdjson.dylib',
+    ];
+  }
+  return const [
+    'libtdjson.so',
+    'libtdjson.so.1.8.0',
+    '/usr/lib/libtdjson.so',
+    '/usr/local/lib/libtdjson.so',
+    '/usr/lib/x86_64-linux-gnu/libtdjson.so',
+  ];
+}
 
 /// The real transport: `dart:ffi` over libtdjson.
 class FfiTdlibTransport implements TdlibTransport {
