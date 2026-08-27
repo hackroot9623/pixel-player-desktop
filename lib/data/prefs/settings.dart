@@ -293,11 +293,25 @@ class Settings extends ChangeNotifier {
     }
   }
 
-  void removeRemoteAccount(String id) =>
-      remoteAccounts = [
-        for (final account in remoteAccounts)
-          if (account.id != id) account,
-      ];
+  /// Which source the browse screens are showing: null is the local library,
+  /// otherwise a [RemoteAccount.id].
+  String? get activeSourceId {
+    final value = _prefs.getString('active_source');
+    return (value == null || value.isEmpty) ? null : value;
+  }
+
+  set activeSourceId(String? value) => _set('active_source', value ?? '');
+
+  void removeRemoteAccount(String id) {
+    remoteAccounts = [
+      for (final account in remoteAccounts)
+        if (account.id != id) account,
+    ];
+    // Removing the source that is currently showing would otherwise leave every
+    // screen empty with no way back.
+    if (activeSourceId == id) activeSourceId = null;
+  }
+
 
   // ------------------------------------------------------------------- misc
 

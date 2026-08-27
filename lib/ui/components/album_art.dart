@@ -6,6 +6,10 @@ import '../theme/shapes.dart';
 
 /// Port of `presentation/components/SmartImage` + `OptimizedAlbumArt`:
 /// artwork with a themed placeholder, rounded to the app's shape scale.
+/// Whether an artwork path is a URL to fetch rather than a file to open.
+bool isNetworkArtwork(String path) =>
+    path.startsWith('http://') || path.startsWith('https://');
+
 class AlbumArt extends StatelessWidget {
   const AlbumArt({
     super.key,
@@ -28,20 +32,32 @@ class AlbumArt extends StatelessWidget {
     // No existsSync() here: this widget renders once per visible row, and a
     // stat syscall inside build showed up as list-scrolling jank. A missing
     // file falls through to errorBuilder instead.
-    final file = path == null ? null : File(path!);
-    Widget child;
-    if (file != null) {
-      child = Image.file(
-        file,
+    // A remote source hands back an http(s) cover URL rather than a file, so the
+    // path decides which loader to use. Without this every server's artwork
+    // silently fell through to the placeholder.
+    final child = switch (path) {
+      null => _placeholder(scheme),
+      final value when isNetworkArtwork(value) => Image.network(
+        value,
         width: size,
         height: size,
         fit: BoxFit.cover,
         cacheWidth: size == null ? 512 : (size! * 2).round(),
         errorBuilder: (_, _, _) => _placeholder(scheme),
-      );
-    } else {
-      child = _placeholder(scheme);
-    }
+        // A blank box while it downloads reads as broken; the placeholder is
+        // the same shape and colour as the final image's backdrop.
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : _placeholder(scheme),
+      ),
+      final value => Image.file(
+        File(value),
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        cacheWidth: size == null ? 512 : (size! * 2).round(),
+        errorBuilder: (_, _, _) => _placeholder(scheme),
+      ),
+    };
     final clipped = ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: SizedBox(width: size, height: size, child: child),

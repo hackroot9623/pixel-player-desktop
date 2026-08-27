@@ -14,7 +14,7 @@ class AlbumDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final album = ref
-        .watch(libraryProvider)
+        .watch(activeLibraryProvider)
         .albums
         .where((a) => a.id == albumId)
         .firstOrNull;

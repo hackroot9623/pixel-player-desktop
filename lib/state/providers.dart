@@ -16,6 +16,7 @@ import '../data/models/sort_option.dart';
 import '../data/prefs/settings.dart';
 import '../data/remote/jellyfin_source.dart';
 import '../data/remote/navidrome_source.dart';
+import '../data/remote/remote_library.dart';
 import '../data/remote/remote_account.dart';
 import '../data/remote/remote_source.dart';
 import '../data/scanner/library_scanner.dart';
@@ -608,6 +609,16 @@ final libraryTabProvider = StateProvider<LibraryTabId>(
 /// whole extraction and the theme visibly lagged behind the music.
 final _schemeCache = <String, (ColorScheme, ColorScheme)>{};
 
+/// Artwork for the quantiser: a remote cover is a URL, a local one a file that
+/// may since have been deleted.
+ImageProvider? _artworkImage(String artPath) {
+  if (artPath.startsWith('http://') || artPath.startsWith('https://')) {
+    return NetworkImage(artPath);
+  }
+  final file = File(artPath);
+  return file.existsSync() ? FileImage(file) : null;
+}
+
 final albumArtSchemeProvider = FutureProvider<(ColorScheme, ColorScheme)?>((
   ref,
 ) async {
@@ -627,8 +638,8 @@ final albumArtSchemeProvider = FutureProvider<(ColorScheme, ColorScheme)?>((
   final cached = _schemeCache[key];
   if (cached != null) return cached;
 
-  if (!File(artPath).existsSync()) return null;
-  final image = FileImage(File(artPath));
+  final image = _artworkImage(artPath);
+  if (image == null) return null;
   final light = await ColorScheme.fromImageProvider(
     provider: image,
     dynamicSchemeVariant: variant,
@@ -665,8 +676,8 @@ final artworkSchemesProvider =
       final cached = _schemeCache[key];
       if (cached != null) return cached;
 
-      if (!File(artPath).existsSync()) return null;
-      final image = FileImage(File(artPath));
+      final image = _artworkImage(artPath);
+      if (image == null) return null;
       final light = await ColorScheme.fromImageProvider(
         provider: image,
         dynamicSchemeVariant: variant,
@@ -737,6 +748,66 @@ Future<RemoteAccount> connectRemoteAccount(
     source.close();
   }
 }
+
+/// Which source the browse screens show: null is the local library.
+final activeSourceProvider = Provider<String?>((ref) {
+  final settings = ref.watch(settingsProvider);
+  final id = settings.activeSourceId;
+  if (id == null) return null;
+  // A stored id whose account has gone falls back to local rather than showing
+  // an empty library.
+  final exists = settings.remoteAccounts.any((account) => account.id == id);
+  return exists ? id : null;
+});
+
+/// The account behind [activeSourceProvider], or null when showing local files.
+final activeAccountProvider = Provider<RemoteAccount?>((ref) {
+  final id = ref.watch(activeSourceProvider);
+  if (id == null) return null;
+  return ref
+      .watch(remoteAccountsProvider)
+      .where((account) => account.id == id)
+      .firstOrNull;
+});
+
+/// The library the browse screens should read.
+///
+/// Either the scanned local library or a server's catalogue presented in the
+/// same shape, so Home, Search, Library and the detail screens work against a
+/// remote account without knowing about one. Playlists, folders and tag editing
+/// stay local — those are properties of files on this machine.
+final activeLibraryProvider = Provider<LibraryState>((ref) {
+  final accountId = ref.watch(activeSourceProvider);
+  if (accountId == null) return ref.watch(libraryProvider);
+
+  final remote = ref.watch(remoteSongsProvider(accountId));
+  final local = ref.watch(libraryProvider);
+  return remote.when(
+    loading: () => const LibraryState(scanning: true),
+    error: (error, _) => LibraryState(
+      error: error is RemoteException
+          ? error.message
+          : 'Could not load this server.',
+    ),
+    data: (songs) {
+      final grouped = groupSongs(songs);
+      return LibraryState(
+        songs: songs,
+        albums: grouped.albums,
+        artists: grouped.artists,
+        genres: grouped.genres,
+        // A server's own playlists are not ported yet; the local ones would be
+        // misleading here, since their tracks are not on this server.
+        playlists: const [],
+        favorites: [
+          for (final song in songs)
+            if (song.isFavorite) song,
+        ],
+        scanProgress: local.scanProgress,
+      );
+    },
+  );
+});
 
 // ------------------------------------------------------------------- stats
 

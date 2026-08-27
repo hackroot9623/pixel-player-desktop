@@ -18,7 +18,7 @@ class ArtistDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final artist = ref
-        .watch(libraryProvider)
+        .watch(activeLibraryProvider)
         .artists
         .where((a) => a.id == artistId)
         .firstOrNull;

@@ -35,7 +35,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   Widget build(BuildContext context) {
     final results = ref.watch(searchResultsProvider);
     final query = ref.watch(searchQueryProvider);
-    final library = ref.watch(libraryProvider);
+    final library = ref.watch(activeLibraryProvider);
     final db = ref.watch(databaseProvider);
     final player = ref.read(playerProvider);
     final theme = Theme.of(context);
@@ -162,7 +162,7 @@ class _IdleState extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final genres = ref.watch(libraryProvider).genres;
+    final genres = ref.watch(activeLibraryProvider).genres;
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       children: [

@@ -3,6 +3,8 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 
+import 'album_art.dart' show isNetworkArtwork;
+
 /// Port of `presentation/components/AlbumArtCollage` + `CollagePatterns` +
 /// `utils/shapes/RoundedStarShape`.
 ///
@@ -511,15 +513,22 @@ class _Cover extends StatelessWidget {
         clipper: _ShapeClipper(config.shape),
         child: ColoredBox(
           color: scheme.surfaceContainerHigh,
-          child: path == null
-              ? null
-              : Image.file(
-                  File(path!),
-                  fit: BoxFit.cover,
-                  // A cover that vanished since the scan should leave the shape
-                  // standing, not throw an exception into the banner.
-                  errorBuilder: (context, _, _) => const SizedBox.shrink(),
-                ),
+          child: switch (path) {
+            null => null,
+            // Remote covers are URLs; local ones are files.
+            final value when isNetworkArtwork(value) => Image.network(
+              value,
+              fit: BoxFit.cover,
+              errorBuilder: (context, _, _) => const SizedBox.shrink(),
+            ),
+            final value => Image.file(
+              File(value),
+              fit: BoxFit.cover,
+              // A cover that vanished since the scan should leave the shape
+              // standing, not throw an exception into the banner.
+              errorBuilder: (context, _, _) => const SizedBox.shrink(),
+            ),
+          },
         ),
       ),
     );

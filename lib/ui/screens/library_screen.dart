@@ -7,6 +7,7 @@ import '../../state/providers.dart';
 import '../components/common.dart';
 import '../components/expressive_scrollbar.dart';
 import '../components/library_widgets.dart';
+import '../components/source_selector.dart';
 import '../components/multi_select.dart';
 import '../navigation.dart';
 
@@ -49,6 +50,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen>
           child: Row(
             children: [
               const Expanded(child: ExpressiveTitle('LIBRARY')),
+              const SourceSelector(),
+              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () => showSortSheet(context, ref, tab),
                 icon: const Icon(Icons.sort_rounded),
@@ -105,7 +108,7 @@ class _TabContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final library = ref.watch(libraryProvider);
+    final library = ref.watch(activeLibraryProvider);
     final sort = ref.watch(settingsProvider).sortFor(tab);
 
     switch (tab) {

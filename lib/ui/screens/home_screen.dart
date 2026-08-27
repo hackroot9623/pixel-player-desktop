@@ -6,6 +6,7 @@ import '../../state/providers.dart';
 import '../components/album_art.dart';
 import 'ai_playlist_sheet.dart';
 import '../components/collage.dart';
+import '../components/source_selector.dart';
 import '../theme/contrast.dart';
 import '../components/common.dart';
 import '../components/library_widgets.dart';
@@ -20,7 +21,7 @@ class HomeScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final library = ref.watch(libraryProvider);
+    final library = ref.watch(activeLibraryProvider);
     final mix = ref.watch(dailyMixProvider);
     final recent = ref.watch(recentlyPlayedProvider);
     final player = ref.read(playerProvider);
@@ -55,6 +56,7 @@ class HomeScreen extends ConsumerWidget {
             ],
           ),
           actions: [
+            const SourceSelector(),
             IconButton(
               tooltip: 'Rescan library',
               icon: const Icon(Icons.refresh_rounded),
@@ -82,7 +84,9 @@ class HomeScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 20),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              if (library.scanning) const _ScanBanner(),
+              const SourceStatusBanner(),
+              if (library.scanning && ref.watch(activeSourceProvider) == null)
+                const _ScanBanner(),
               SectionHeader(
                 title: 'Your Mix',
                 subtitle: 'Built from what you have been playing',

@@ -7,7 +7,11 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pixelplay_desktop/data/remote/jellyfin_source.dart';
 import 'package:pixelplay_desktop/data/remote/navidrome_source.dart';
+import 'package:flutter/material.dart';
+import 'package:pixelplay_desktop/data/models/models.dart';
 import 'package:pixelplay_desktop/data/remote/remote_account.dart';
+import 'package:pixelplay_desktop/data/remote/remote_library.dart';
+import 'package:pixelplay_desktop/ui/components/album_art.dart';
 import 'package:pixelplay_desktop/data/remote/remote_source.dart';
 
 /// No servers here, so every request goes through a fake. That also lets the
@@ -489,6 +493,133 @@ void main() {
       final http = _FakeHttpClient(body: jsonEncode({'Items': []}));
       await source(http).songs();
       expect(http.requests, hasLength(1));
+    });
+  });
+
+  group('grouping a server catalogue', () {
+    Song song(
+      String id, {
+      String title = 'Track',
+      String artist = 'Moneda Dura',
+      int artistId = 1,
+      String album = 'Sin Blasfemias',
+      int albumId = 10,
+      String? genre,
+      String? art,
+      bool favorite = false,
+      int year = 2001,
+      List<ArtistRef> artists = const [],
+    }) => Song(
+      id: id,
+      title: title,
+      artist: artist,
+      artistId: artistId,
+      artists: artists,
+      album: album,
+      albumId: albumId,
+      path: 'https://music.example.com/stream/$id',
+      albumArtPath: art,
+      duration: 200000,
+      genre: genre,
+      isFavorite: favorite,
+      year: year,
+    );
+
+    test('albums, artists and genres come out of the song list', () {
+      // A remote account has no database, so Library and Home depend entirely
+      // on this derivation.
+      final grouped = groupSongs([
+        song('a', title: 'Al Sudeste', genre: 'Rock'),
+        song('b', title: 'Extraños', genre: 'Rock'),
+        song(
+          'c',
+          title: 'Como Fué',
+          artist: 'Benny Moré',
+          artistId: 2,
+          album: 'Mágico',
+          albumId: 20,
+          genre: 'Son',
+        ),
+      ]);
+
+      expect(grouped.albums.map((a) => a.title), ['Mágico', 'Sin Blasfemias']);
+      expect(
+        grouped.albums.firstWhere((a) => a.id == 10).songCount,
+        2,
+      );
+      expect(grouped.artists.map((a) => a.name), ['Benny Moré', 'Moneda Dura']);
+      expect(grouped.artists.firstWhere((a) => a.id == 1).songCount, 2);
+      expect(grouped.artists.firstWhere((a) => a.id == 1).albumCount, 1);
+      expect(grouped.genres.map((g) => g.name), ['Rock', 'Son']);
+      expect(grouped.genres.firstWhere((g) => g.name == 'Rock').songCount, 2);
+    });
+
+    test('an album takes the first cover any of its tracks has', () {
+      // Servers often report art on some tracks only.
+      final grouped = groupSongs([
+        song('a'),
+        song('b', art: 'https://music.example.com/art/10'),
+      ]);
+      expect(
+        grouped.albums.single.albumArtPath,
+        'https://music.example.com/art/10',
+      );
+    });
+
+    test('every credited artist lists the track', () {
+      final grouped = groupSongs([
+        song(
+          'a',
+          artists: const [
+            ArtistRef(id: 1, name: 'Moneda Dura', isPrimary: true),
+            ArtistRef(id: 2, name: 'Invited Guest', isPrimary: false),
+          ],
+        ),
+      ]);
+      expect(grouped.artists, hasLength(2));
+      expect(grouped.artists.every((a) => a.songCount == 1), isTrue);
+    });
+
+    test('a catalogue with no genres yields no genre rows', () {
+      final grouped = groupSongs([song('a'), song('b', genre: '  ')]);
+      expect(grouped.genres, isEmpty);
+    });
+
+    test('an empty catalogue groups to nothing rather than throwing', () {
+      final grouped = groupSongs(const []);
+      expect(grouped.albums, isEmpty);
+      expect(grouped.artists, isEmpty);
+      expect(grouped.genres, isEmpty);
+    });
+  });
+
+  group('artwork source', () {
+    test('a URL is fetched and a path is opened', () {
+      // Remote covers are URLs; loading them as files was why server artwork
+      // never appeared.
+      expect(isNetworkArtwork('https://jelly.example.com/Items/1/Images'), isTrue);
+      expect(isNetworkArtwork('http://nas:4533/rest/getCoverArt.view'), isTrue);
+      expect(isNetworkArtwork('/home/me/.cache/pixelplay/art/1.jpg'), isFalse);
+      expect(isNetworkArtwork('art/relative.jpg'), isFalse);
+    });
+
+    testWidgets('a remote cover renders without hitting the filesystem', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: AlbumArt(
+              path: 'https://music.example.com/rest/getCoverArt.view?id=1',
+              size: 64,
+            ),
+          ),
+        ),
+      );
+      // Image.network cannot load in a test, but it must render its placeholder
+      // rather than throwing the way Image.file did on a URL.
+      expect(tester.takeException(), isNull);
+      expect(find.byType(AlbumArt), findsOne);
     });
   });
 }
