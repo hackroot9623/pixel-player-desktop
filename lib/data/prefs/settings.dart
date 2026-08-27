@@ -265,6 +265,37 @@ class Settings extends ChangeNotifier {
   bool get aiExtendedFields => _prefs.getBool('ai_extended_fields') ?? false;
   set aiExtendedFields(bool value) => _set('ai_extended_fields', value);
 
+  // ----------------------------------------------------------------- spotify
+
+  /// The client ID of the Spotify app the user registered.
+  ///
+  /// Spotify issues these per application and requires the redirect URI to be
+  /// registered in advance, so this cannot be shipped for the user the way an
+  /// API key sometimes can.
+  String get spotifyClientId =>
+      _prefs.getString('spotify_client_id')?.trim() ?? '';
+  set spotifyClientId(String value) =>
+      _set('spotify_client_id', value.trim());
+
+  /// The refresh token, which is the whole session. Spotify rotates it, so it
+  /// is rewritten after every refresh.
+  String get spotifyRefreshToken =>
+      _prefs.getString('spotify_refresh_token') ?? '';
+  set spotifyRefreshToken(String value) =>
+      _set('spotify_refresh_token', value);
+
+  /// Who is signed in, for the settings screen to show.
+  String get spotifyAccount => _prefs.getString('spotify_account') ?? '';
+  set spotifyAccount(String value) => _set('spotify_account', value);
+
+  bool get spotifyConnected =>
+      spotifyClientId.isNotEmpty && spotifyRefreshToken.isNotEmpty;
+
+  void disconnectSpotify() {
+    spotifyRefreshToken = '';
+    spotifyAccount = '';
+  }
+
   // ---------------------------------------------------------- remote sources
 
   /// Configured remote accounts, in the order the user added them.

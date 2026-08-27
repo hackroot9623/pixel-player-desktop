@@ -123,3 +123,38 @@ check session cookies. So:
 
 Keeping yt-dlp current is what fixes playback when YouTube changes something;
 that is a job for your package manager, not a PixelPlayer release.
+
+## Spotify
+
+Spotify is an **import** source, not a playback source. Their API will tell you
+what is in a playlist but never hand over the audio: playback is only possible
+through their own SDK, on a Premium account, and that SDK does not exist for
+Flutter desktop. So the integration reads your library and pairs each track
+with a song you already have.
+
+Set up an app once:
+
+1. Open <https://developer.spotify.com/dashboard> and create an app.
+2. Add exactly this redirect URI: `http://127.0.0.1:8888/callback`
+3. Copy the client ID into Settings → Spotify. There is no client secret —
+   the flow is Authorization Code with PKCE, so nothing secret is shipped.
+
+Connecting opens your browser; the redirect lands on a one-shot loopback server
+that closes as soon as the code arrives. The scopes requested are read-only.
+
+Importing a playlist matches every track against your local library by title,
+artist and duration, with the noise stripped ("- Remastered 2011", "(feat. X)",
+accents). Results come back in three buckets:
+
+- **Imported** — matched confidently.
+- **Uncertain** — matched, but something had to be forgiven, usually a duration
+  that says this is a different edit. Worth a look.
+- **Missing** — nothing close enough. These are reported and never added, so an
+  imported playlist never contains rows that will not play.
+
+Spotify supplies an ISRC that would settle a match outright, but the local
+library does not store one, so matching stays fuzzy until the scanner reads it.
+
+The refresh token is kept so you do not sign in repeatedly. Spotify rotates it
+on every refresh, and it currently lives in `shared_preferences` in plain text —
+the same known gap as the other remote credentials.
