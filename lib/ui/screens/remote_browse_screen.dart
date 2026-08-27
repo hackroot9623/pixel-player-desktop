@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/models/models.dart';
+import '../../data/remote/remote_account.dart';
 import '../../data/remote/remote_source.dart';
+import '../../data/remote/youtube/ytdlp_client.dart';
 import '../../state/providers.dart';
 import '../components/common.dart';
 import '../components/library_widgets.dart';
@@ -39,8 +41,17 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
       );
     }
 
-    final songs = ref.watch(remoteSongsProvider(widget.accountId));
-    final player = ref.read(playerProvider);
+    final isYoutube = account.kind == RemoteKind.youtube;
+    // On YouTube the box searches the service, since there is no catalogue to
+    // filter; everywhere else it filters what the server already gave us.
+    final songs = isYoutube && _query.trim().isNotEmpty
+        ? ref.watch(
+            youtubeSearchProvider((
+              accountId: widget.accountId,
+              query: _query.trim(),
+            )),
+          )
+        : ref.watch(remoteSongsProvider(widget.accountId));
 
     return Scaffold(
       appBar: AppBar(
@@ -63,9 +74,11 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
             child: EmptyState(
               icon: Icons.cloud_off_rounded,
               title: 'Could not load the library',
-              message: error is RemoteException
-                  ? error.message
-                  : 'Something went wrong talking to the server.',
+              message: switch (error) {
+                RemoteException(:final message) => message,
+                YtDlpException(:final message) => message,
+                _ => 'Something went wrong talking to the server.',
+              },
               action: FilledButton.tonal(
                 onPressed: () =>
                     ref.invalidate(remoteSongsProvider(widget.accountId)),
@@ -76,14 +89,17 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
         ),
         data: (all) {
           if (all.isEmpty) {
-            return const EmptyState(
+            return EmptyState(
               icon: Icons.library_music_outlined,
-              title: 'Nothing here',
-              message: 'This account can see no audio on the server.',
+              title: isYoutube ? 'Nothing to show yet' : 'Nothing here',
+              message: isYoutube
+                  ? 'Search above, or add a playlist link in the YouTube '
+                        'settings.'
+                  : 'This account can see no audio on the server.',
             );
           }
 
-          final query = _query.trim().toLowerCase();
+          final query = isYoutube ? '' : _query.trim().toLowerCase();
           final matches = query.isEmpty
               ? all
               : [
@@ -107,7 +123,9 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
                   children: [
                     Expanded(
                       child: SearchBar(
-                        hintText: 'Search this server',
+                        hintText: isYoutube
+                            ? 'Search YouTube Music'
+                            : 'Search this server',
                         leading: const Icon(Icons.search_rounded),
                         onChanged: (value) => setState(() => _query = value),
                       ),
@@ -116,7 +134,7 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
                     FilledButton.tonalIcon(
                       onPressed: matches.isEmpty
                           ? null
-                          : () => player.playQueue([...matches]..shuffle()),
+                          : () => playSongs(ref, [...matches]..shuffle()),
                       icon: const Icon(Icons.shuffle_rounded),
                       label: const Text('Shuffle all'),
                     ),
@@ -141,7 +159,7 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
                         trailing: IconButton(
                           tooltip: 'Play album',
                           icon: const Icon(Icons.play_arrow_rounded),
-                          onPressed: () => player.playQueue(entry.value),
+                          onPressed: () => playSongs(ref, entry.value),
                         ),
                       ),
                       for (var i = 0; i < entry.value.length; i++)
@@ -151,7 +169,7 @@ class _RemoteBrowseScreenState extends ConsumerState<RemoteBrowseScreen> {
                           // selection actions that operate on it do not apply.
                           selectable: false,
                           onTap: () =>
-                              player.playQueue(entry.value, startIndex: i),
+                              playSongs(ref, entry.value, startIndex: i),
                         ),
                     ],
                   ],

@@ -570,7 +570,12 @@ void main() {
       // The loader error names a file the user has never heard of, so it is
       // replaced with something actionable.
       expect(
-        () => FfiTdlibTransport.open(explicitPath: '/nonexistent/libtdjson.so'),
+        () => FfiTdlibTransport.open(
+          explicitPath: '/nonexistent/libtdjson.so',
+          // No fallbacks, so the assertion holds whether or not this machine
+          // has TDLib installed.
+          searchPaths: const [],
+        ),
         throwsA(
           isA<TdlibException>().having(
             (e) => e.message,

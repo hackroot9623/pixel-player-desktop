@@ -178,3 +178,14 @@ String? remoteItemId(String songId) {
 }
 
 bool isRemoteSongId(String songId) => remoteItemId(songId) != null;
+
+/// Which backend a song came from, or null when it is a local file.
+///
+/// The id carries it, so playback can be routed by the track itself rather than
+/// by whatever source happens to be selected — which is what makes a mixed
+/// queue, or a search result played from the local library, behave.
+RemoteKind? remoteKindOfSongId(String songId) {
+  final parts = songId.split(':');
+  if (parts.length < 3) return null;
+  return RemoteKind.fromStorageKey(parts.first);
+}

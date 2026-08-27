@@ -20,6 +20,8 @@ import '../data/remote/remote_library.dart';
 import '../data/remote/telegram/tdlib_client.dart';
 import '../data/remote/telegram/telegram_credentials.dart';
 import '../data/remote/telegram/telegram_source.dart';
+import '../data/remote/youtube/youtube_source.dart';
+import '../data/remote/youtube/ytdlp_client.dart';
 import '../data/remote/remote_account.dart';
 import '../data/remote/remote_source.dart';
 import '../data/scanner/library_scanner.dart';
@@ -708,6 +710,9 @@ RemoteSource remoteSourceFor(RemoteAccount account) => switch (account.kind) {
   RemoteKind.telegram => throw StateError(
     'Telegram is served by telegramSourceProvider',
   ),
+  RemoteKind.youtube => throw StateError(
+    'YouTube is served by youtubeSourceProvider',
+  ),
 };
 
 /// The application's own Telegram credentials, if this build has them.
@@ -838,6 +843,10 @@ final remoteSongsProvider =
           .firstOrNull;
       if (account == null) return const [];
 
+      if (account.kind == RemoteKind.youtube) {
+        return ref.watch(youtubeSourceProvider(accountId)).songs();
+      }
+
       if (account.kind == RemoteKind.telegram) {
         // No sign-in step here: TDLib restores its own session, and the setup
         // screen is what drives an interactive login.
@@ -933,6 +942,121 @@ final activeLibraryProvider = Provider<LibraryState>((ref) {
     },
   );
 });
+
+// ------------------------------------------------------------ youtube music
+
+/// The yt-dlp-backed YouTube Music source for one account.
+final youtubeSourceProvider =
+    Provider.family<YoutubeSource, String>((ref, accountId) {
+      final account = ref
+          .watch(remoteAccountsProvider)
+          .firstWhere((entry) => entry.id == accountId);
+      return YoutubeSource(
+        account: account,
+        client: YtDlpClient(
+          executable: youtubeExecutable(account),
+          cookiesFromBrowser: youtubeCookiesBrowser(account),
+          cookiesFile: youtubeCookiesFile(account),
+        ),
+      );
+    });
+
+/// The installed yt-dlp version, or null when the binary cannot be found.
+final ytDlpVersionProvider =
+    FutureProvider.autoDispose.family<String?, String>((ref, accountId) {
+      final account = ref
+          .watch(remoteAccountsProvider)
+          .where((entry) => entry.id == accountId)
+          .firstOrNull;
+      return YtDlpClient(
+        executable: account == null ? 'yt-dlp' : youtubeExecutable(account),
+      ).version();
+    });
+
+/// Search results, for the YouTube browse screen.
+final youtubeSearchProvider = FutureProvider.autoDispose
+    .family<List<Song>, ({String accountId, String query})>((ref, args) async {
+      if (args.query.trim().isEmpty) return const [];
+      return ref
+          .watch(youtubeSourceProvider(args.accountId))
+          .search(args.query);
+    });
+
+/// Plays a YouTube queue, resolving each stream URL as it is needed.
+///
+/// A YouTube stream URL expires and is tied to the requesting address, so unlike
+/// a Jellyfin stream it cannot be kept in the library and replayed later. The
+/// chosen track is therefore resolved and played at once, and the rest of the
+/// queue is resolved one at a time in the background and appended as it lands —
+/// resolving the whole queue up front would mean one yt-dlp run per track before
+/// a single note played.
+///
+/// [onProgress] reports how many tracks are ready, for the UI to show.
+Future<void> playYoutubeQueue(
+  WidgetRef ref,
+  List<Song> songs, {
+  int startIndex = 0,
+  void Function(int resolved, int total)? onProgress,
+}) async {
+  if (songs.isEmpty) return;
+  final accountId = ref.read(activeSourceProvider);
+  if (accountId == null) return;
+  final source = ref.read(youtubeSourceProvider(accountId));
+  final player = ref.read(playerProvider);
+
+  final chosen = songs[startIndex];
+  await player.playQueue([
+    chosen.copyWith(path: await source.resolve(chosen)),
+  ]);
+  onProgress?.call(1, songs.length);
+
+  // Everything after the chosen track, then everything before it: what "play
+  // from here" implies for the rest of a list.
+  final rest = [
+    ...songs.sublist(startIndex + 1),
+    ...songs.sublist(0, startIndex),
+  ];
+
+  unawaited(
+    Future(() async {
+      var resolved = 1;
+      for (final song in rest) {
+        try {
+          final url = await source.resolve(song);
+          await player.addToQueue([song.copyWith(path: url)]);
+          resolved++;
+          onProgress?.call(resolved, songs.length);
+        } on YtDlpException {
+          // One unavailable track should not stop the queue filling.
+          continue;
+        }
+      }
+    }),
+  );
+}
+
+/// Plays [songs], routing by where the chosen track comes from.
+///
+/// A local file can go straight to the player, but a YouTube track needs its
+/// stream URL resolved first and a Telegram track needs its file downloaded.
+/// Every "play" affordance in the UI goes through here so none of them has to
+/// know which.
+Future<void> playSongs(
+  WidgetRef ref,
+  List<Song> songs, {
+  int startIndex = 0,
+}) async {
+  if (songs.isEmpty) return;
+  final index = startIndex.clamp(0, songs.length - 1);
+  switch (remoteKindOfSongId(songs[index].id)) {
+    case RemoteKind.youtube:
+      await playYoutubeQueue(ref, songs, startIndex: index);
+    case RemoteKind.telegram:
+      await playTelegramQueue(ref, songs, startIndex: index);
+    case _:
+      await ref.read(playerProvider).playQueue(songs, startIndex: index);
+  }
+}
 
 // ------------------------------------------------------------------- stats
 

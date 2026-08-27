@@ -282,7 +282,6 @@ class _SongListState extends ConsumerState<_SongList> {
 
   @override
   Widget build(BuildContext context) {
-    final player = ref.read(playerProvider);
     final songs = widget.songs;
     return Stack(
       children: [
@@ -303,7 +302,7 @@ class _SongListState extends ConsumerState<_SongList> {
             itemCount: songs.length,
             itemBuilder: (context, i) => SongTile(
               song: songs[i],
-              onTap: () => player.playQueue(songs, startIndex: i),
+              onTap: () => playSongs(ref, songs, startIndex: i),
             ),
           ),
         ),

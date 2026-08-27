@@ -102,3 +102,24 @@ Two caveats on the bundles. The macOS build is unsigned and un-notarised, so
 Gatekeeper needs the right-click → Open dance on first launch; signing needs an
 Apple Developer certificate. And macOS runners are Apple silicon, so that bundle
 is arm64 only — an Intel build would need a separate `macos-13` matrix entry.
+
+## YouTube Music
+
+Playback goes through [yt-dlp](https://github.com/yt-dlp/yt-dlp), which you
+install yourself — there is no official API that hands out audio, and the
+YouTube Data API requires playback through its own embedded player. Extracting
+audio is against YouTube's terms of service; whether to do it is your call.
+
+**Google sign-in does not help here.** OAuth works for the Data API's metadata,
+but the servers that actually serve audio do not accept an OAuth token — they
+check session cookies. So:
+
+- **Search** works anonymously.
+- **Playback** almost always needs cookies. Either pick a browser you are signed
+  into, or — more reliably — export a `cookies.txt` and point at it. Chromium
+  browsers lock their cookie database while running, so the file route works
+  where the browser route often does not.
+- **Your own playlists and Liked Music** need cookies for the same reason.
+
+Keeping yt-dlp current is what fixes playback when YouTube changes something;
+that is a job for your package manager, not a PixelPlayer release.

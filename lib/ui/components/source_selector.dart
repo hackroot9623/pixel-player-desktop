@@ -21,6 +21,7 @@ class SourceSelector extends ConsumerWidget {
     RemoteKind.jellyfin => Icons.movie_filter_rounded,
     RemoteKind.navidrome => Icons.dns_rounded,
     RemoteKind.telegram => Icons.send_rounded,
+    RemoteKind.youtube => Icons.smart_display_outlined,
   };
 
   @override

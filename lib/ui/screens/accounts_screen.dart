@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../data/remote/remote_account.dart';
 import '../../data/remote/remote_source.dart';
 import '../../data/remote/telegram/telegram_source.dart';
+import '../../data/remote/youtube/youtube_source.dart';
 import '../../state/providers.dart';
 import '../components/common.dart';
 import '../navigation.dart';
@@ -26,8 +27,8 @@ class AccountsScreen extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
         children: [
           Text(
-            'Stream from a music server alongside your local files. Tracks stay '
-            'on the server; nothing is copied into your library.',
+            'Play from somewhere other than this computer, alongside your local '
+            'files. Nothing is copied into your library.',
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),
@@ -37,7 +38,7 @@ class AccountsScreen extends ConsumerWidget {
             const EmptyState(
               icon: Icons.cloud_off_rounded,
               title: 'No servers yet',
-              message: 'Add a Jellyfin or Navidrome server to stream from it.',
+              message: 'Add a server, a Telegram account or YouTube Music.',
             )
           else
             for (final account in accounts) _AccountTile(account: account),
@@ -51,13 +52,16 @@ class AccountsScreen extends ConsumerWidget {
                   RemoteKind.jellyfin => Icons.movie_filter_rounded,
                   RemoteKind.navidrome => Icons.dns_rounded,
                   RemoteKind.telegram => Icons.send_rounded,
+                  RemoteKind.youtube => Icons.smart_display_outlined,
                 }),
                 title: Text(kind.label),
                 subtitle: Text(kind.description),
                 trailing: const Icon(Icons.add_rounded),
-                onTap: () => kind == RemoteKind.telegram
-                    ? openTelegramSetup(context)
-                    : showRemoteAccountSheet(context, kind: kind),
+                onTap: () => switch (kind) {
+                  RemoteKind.telegram => openTelegramSetup(context),
+                  RemoteKind.youtube => openYoutubeSetup(context),
+                  _ => showRemoteAccountSheet(context, kind: kind),
+                },
               ),
             ),
         ],
@@ -84,6 +88,7 @@ class _AccountTile extends ConsumerWidget {
             RemoteKind.jellyfin => Icons.movie_filter_rounded,
             RemoteKind.navidrome => Icons.dns_rounded,
             RemoteKind.telegram => Icons.send_rounded,
+            RemoteKind.youtube => Icons.smart_display_outlined,
           },
           color: theme.colorScheme.primary,
         ),
@@ -94,10 +99,15 @@ class _AccountTile extends ConsumerWidget {
             error: (error, _) => error is RemoteException
                 ? error.message
                 : 'Could not reach the server',
-            data: (list) => account.kind == RemoteKind.telegram
-                ? '${telegramChatIds(account).length} chats · '
-                      '${list.length} tracks'
-                : '${account.username} · ${list.length} tracks',
+            data: (list) => switch (account.kind) {
+              RemoteKind.telegram =>
+                '${telegramChatIds(account).length} chats · '
+                    '${list.length} tracks',
+              RemoteKind.youtube =>
+                '${youtubeSourceUrls(account).length} links · '
+                    '${list.length} tracks',
+              _ => '${account.username} · ${list.length} tracks',
+            },
           ),
           maxLines: 2,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -118,13 +128,17 @@ class _AccountTile extends ConsumerWidget {
             IconButton(
               tooltip: 'Edit',
               icon: const Icon(Icons.edit_rounded),
-              onPressed: () => account.kind == RemoteKind.telegram
-                  ? openTelegramSetup(context, accountId: account.id)
-                  : showRemoteAccountSheet(
-                      context,
-                      kind: account.kind,
-                      existing: account,
-                    ),
+              onPressed: () => switch (account.kind) {
+                RemoteKind.telegram =>
+                  openTelegramSetup(context, accountId: account.id),
+                RemoteKind.youtube =>
+                  openYoutubeSetup(context, accountId: account.id),
+                _ => showRemoteAccountSheet(
+                  context,
+                  kind: account.kind,
+                  existing: account,
+                ),
+              },
             ),
             IconButton(
               tooltip: 'Remove',

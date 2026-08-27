@@ -101,7 +101,7 @@ class SelectionActionBar extends ConsumerWidget {
                     onPressed: selected.isEmpty
                         ? null
                         : () {
-                            player.playQueue(selected);
+                            playSongs(ref, selected);
                             notifier.clear();
                           },
                   ),

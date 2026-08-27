@@ -37,7 +37,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final query = ref.watch(searchQueryProvider);
     final library = ref.watch(activeLibraryProvider);
     final db = ref.watch(databaseProvider);
-    final player = ref.read(playerProvider);
     final theme = Theme.of(context);
 
     return Column(
@@ -123,7 +122,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         title: 'Songs',
                         subtitle: plural(results.songs.length, 'result'),
                         trailing: FilledButton.tonalIcon(
-                          onPressed: () => player.playQueue(results.songs),
+                          onPressed: () => playSongs(ref, results.songs),
                           icon: const Icon(Icons.play_arrow_rounded),
                           label: const Text('Play all'),
                         ),
@@ -132,7 +131,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                         SongTile(
                           song: results.songs[i],
                           onTap: () =>
-                              player.playQueue(results.songs, startIndex: i),
+                              playSongs(ref, results.songs, startIndex: i),
                         ),
                     ],
                     if (library.genres.isNotEmpty)

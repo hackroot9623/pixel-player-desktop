@@ -12,6 +12,7 @@ import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/remote_browse_screen.dart';
 import 'screens/telegram_setup_screen.dart';
+import 'screens/youtube_setup_screen.dart';
 import 'screens/smart_playlist_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/settings_screens.dart';
@@ -58,6 +59,9 @@ void openRemoteBrowse(BuildContext context, String accountId) =>
 
 void openTelegramSetup(BuildContext context, {String? accountId}) =>
     _push(context, TelegramSetupScreen(accountId: accountId));
+
+void openYoutubeSetup(BuildContext context, {String? accountId}) =>
+    _push(context, YoutubeSetupScreen(accountId: accountId));
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());

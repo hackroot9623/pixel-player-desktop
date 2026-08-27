@@ -15,6 +15,11 @@ enum RemoteKind {
     'telegram',
     'Telegram',
     'Audio from your chats — needs TDLib and an api_id',
+  ),
+  youtube(
+    'youtube',
+    'YouTube Music',
+    'Search and playlists via yt-dlp',
   );
 
   const RemoteKind(this.storageKey, this.label, this.description);
@@ -138,7 +143,9 @@ class RemoteAccount {
 
   String get title => displayName?.trim().isNotEmpty == true
       ? displayName!.trim()
-      : (kind == RemoteKind.telegram ? kind.label : '${kind.label} · $host');
+      : ((kind == RemoteKind.telegram || kind == RemoteKind.youtube)
+            ? kind.label
+            : '${kind.label} · $host');
 
   bool get isComplete => switch (kind) {
     // Telegram authenticates against Telegram itself, so there is no server
@@ -146,6 +153,9 @@ class RemoteAccount {
     // account's, which is why nothing here is required — the setup screen is
     // what refuses to start without a pair from one source or the other.
     RemoteKind.telegram => true,
+    // Nothing to fill in: yt-dlp needs no account, and the search works before
+    // any playlist has been added.
+    RemoteKind.youtube => true,
     _ => normalizedUrl.isNotEmpty && username.isNotEmpty && password.isNotEmpty,
   };
 
@@ -157,5 +167,7 @@ class RemoteAccount {
     // TDLib keeps the session on disk, so "signed in" is whether that session
     // is still valid — which only TDLib can answer, at startup.
     RemoteKind.telegram => extra['session'] == 'ready',
+    // Anonymous by default; cookies only widen what is visible.
+    RemoteKind.youtube => true,
   };
 }

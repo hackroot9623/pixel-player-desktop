@@ -94,11 +94,16 @@ class FfiTdlibTransport implements TdlibTransport {
   ///
   /// Throws [TdlibException] with installation guidance rather than the raw
   /// loader error, which names a file the user has never heard of.
-  factory FfiTdlibTransport.open({String? explicitPath}) {
+  /// [searchPaths] exists so a test can assert the not-installed path without
+  /// depending on whether the machine running it happens to have TDLib.
+  factory FfiTdlibTransport.open({
+    String? explicitPath,
+    List<String>? searchPaths,
+  }) {
     final candidates = [
       if (explicitPath != null && explicitPath.trim().isNotEmpty)
         explicitPath.trim(),
-      ...tdlibSearchPaths,
+      ...(searchPaths ?? tdlibSearchPaths),
     ];
     final failures = <String>[];
     for (final candidate in candidates) {

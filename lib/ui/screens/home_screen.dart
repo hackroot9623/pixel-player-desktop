@@ -24,7 +24,6 @@ class HomeScreen extends ConsumerWidget {
     final library = ref.watch(activeLibraryProvider);
     final mix = ref.watch(dailyMixProvider);
     final recent = ref.watch(recentlyPlayedProvider);
-    final player = ref.read(playerProvider);
 
     if (library.isEmpty) {
       return EmptyState(
@@ -93,7 +92,7 @@ class HomeScreen extends ConsumerWidget {
                 trailing: FilledButton.tonalIcon(
                   onPressed: mix.isEmpty
                       ? null
-                      : () => player.playQueue([...mix]..shuffle()),
+                      : () => playSongs(ref, [...mix]..shuffle()),
                   icon: const Icon(Icons.shuffle_rounded),
                   label: const Text('Shuffle mix'),
                 ),
@@ -307,7 +306,7 @@ class _MixRow extends ConsumerWidget {
               child: InkWell(
                 borderRadius: BorderRadius.circular(shapeLarge),
                 onTap: () =>
-                    ref.read(playerProvider).playQueue(songs, startIndex: i),
+                    playSongs(ref, songs, startIndex: i),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -401,7 +400,7 @@ class _RecentGrid extends ConsumerWidget {
         borderRadius: BorderRadius.circular(shapeMedium),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: () => ref.read(playerProvider).playQueue(songs, startIndex: i),
+          onTap: () => playSongs(ref, songs, startIndex: i),
           child: Row(
             children: [
               AlbumArt(path: song.albumArtPath, size: 68, radius: 0),

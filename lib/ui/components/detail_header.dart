@@ -101,7 +101,7 @@ class DetailScaffold extends ConsumerWidget {
                             FilledButton.icon(
                               onPressed: songs.isEmpty
                                   ? null
-                                  : () => player.playQueue(songs),
+                                  : () => playSongs(ref, songs),
                               icon: const Icon(Icons.play_arrow_rounded),
                               label: const Text('Play'),
                             ),
@@ -111,7 +111,7 @@ class DetailScaffold extends ConsumerWidget {
                                   ? null
                                   : () {
                                       final shuffled = [...songs]..shuffle();
-                                      player.playQueue(shuffled);
+                                      playSongs(ref, shuffled);
                                     },
                               icon: const Icon(Icons.shuffle_rounded),
                               label: const Text('Shuffle'),
@@ -160,7 +160,7 @@ class DetailScaffold extends ConsumerWidget {
                   song: songs[i],
                   showArtwork: !numbered,
                   leadingIndex: numbered ? i : null,
-                  onTap: () => player.playQueue(songs, startIndex: i),
+                  onTap: () => playSongs(ref, songs, startIndex: i),
                 ),
               ),
             ),
