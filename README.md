@@ -182,3 +182,25 @@ Nothing to configure — it appears on the session bus as
 container) and the app carries on without it.
 
 macOS and Windows have their own APIs for this and are not wired up yet.
+
+## Opening files, one window
+
+Double-click an audio file and PixelPlayer plays it. If a copy is already running, the new
+launch hands over the files and exits rather than starting a second player — so you get one
+window and one thing playing, and the running window comes to the front.
+
+Install the desktop entry (`packaging/install.sh`) for your file manager to offer
+PixelPlayer in "Open with". Files given on the command line take priority over the queue you
+left behind.
+
+## Tray and notifications
+
+Both off by default, under Settings → Desktop:
+
+- **Notify on track change** — a popup per track, with Previous/Pause/Next buttons where
+  your notification server can draw them. Off by default because your desktop already shows
+  what is playing.
+- **System tray icon** — transport controls from the tray. Some desktops have no tray (GNOME
+  without an extension), in which case nothing appears.
+- **Close to tray** — closing the window keeps the music going. Needs the tray icon, or
+  there would be no way back to the window.

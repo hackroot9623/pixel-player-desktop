@@ -236,6 +236,58 @@ class SettingsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
 
+          _sectionTitle(context, 'Desktop'),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_rounded),
+                  title: const Text('Notify on track change'),
+                  subtitle: const Text(
+                    'A popup announcing each new track. Off by default — your '
+                    'desktop already shows what is playing',
+                  ),
+                  value: settings.trackNotifications,
+                  onChanged: (value) {
+                    settings.trackNotifications = value;
+                  },
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.dashboard_customize_rounded),
+                  title: const Text('System tray icon'),
+                  subtitle: const Text(
+                    'Transport controls from the tray. Some desktops have no '
+                    'tray, in which case nothing appears',
+                  ),
+                  value: settings.showTrayIcon,
+                  onChanged: (value) async {
+                    settings.showTrayIcon = value;
+                    if (!value) settings.closeToTray = false;
+                    await applyTraySettings(ref);
+                  },
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.close_fullscreen_rounded),
+                  title: const Text('Close to tray'),
+                  subtitle: Text(
+                    settings.showTrayIcon
+                        ? 'Closing the window keeps the music playing'
+                        : 'Needs the tray icon — otherwise there would be no '
+                              'way back to the window',
+                  ),
+                  value: settings.closeToTray,
+                  onChanged: settings.showTrayIcon
+                      ? (value) async {
+                          settings.closeToTray = value;
+                          await applyTraySettings(ref);
+                        }
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+
           _sectionTitle(context, 'Metadata'),
           Card(
             child: Column(

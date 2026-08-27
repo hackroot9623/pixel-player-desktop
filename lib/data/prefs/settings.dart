@@ -266,6 +266,26 @@ class Settings extends ChangeNotifier {
   bool get aiExtendedFields => _prefs.getBool('ai_extended_fields') ?? false;
   set aiExtendedFields(bool value) => _set('ai_extended_fields', value);
 
+  // ---------------------------------------------------------- desktop shell
+
+  /// Whether to announce each new track with a desktop notification.
+  ///
+  /// Off by default. Android needed a notification to be controllable at all;
+  /// here MPRIS already puts controls in the shell, so a popup per track is
+  /// something to ask for rather than something to escape.
+  bool get trackNotifications => _prefs.getBool('track_notifications') ?? false;
+  set trackNotifications(bool value) => _set('track_notifications', value);
+
+  /// Whether to sit in the system tray, and keep running when the window is
+  /// closed.
+  bool get showTrayIcon => _prefs.getBool('tray_icon') ?? false;
+  set showTrayIcon(bool value) => _set('tray_icon', value);
+
+  /// Closing the window hides it instead of quitting. Only meaningful with a
+  /// tray icon — without one there would be no way back to the window.
+  bool get closeToTray => (_prefs.getBool('close_to_tray') ?? false) && showTrayIcon;
+  set closeToTray(bool value) => _set('close_to_tray', value);
+
   // -------------------------------------------------------------- equalizer
 
   /// The whole equalizer setting as JSON: bands plus the three effects.

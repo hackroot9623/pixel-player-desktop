@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
@@ -7,14 +10,27 @@ import 'package:window_manager/window_manager.dart';
 
 import 'data/db/database.dart';
 import 'data/prefs/settings.dart';
+import 'platform/single_instance.dart';
 import 'state/providers.dart';
 import 'ui/components/window_controls.dart';
 import 'ui/screens/setup_screen.dart';
 import 'ui/shell/app_shell.dart';
 import 'ui/theme/app_theme.dart';
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Before anything visible: a second copy hands its files to the first and
+  // leaves, rather than opening a window and fighting for the audio device.
+  final supportDir = await getApplicationSupportDirectory();
+  final instance = await SingleInstance.claim(
+    args,
+    stateDirectory: supportDir.path,
+  );
+  if (instance == null) {
+    exit(0);
+  }
+
   MediaKit.ensureInitialized();
   await windowManager.ensureInitialized();
   await windowManager.waitUntilReadyToShow(
@@ -31,7 +47,6 @@ Future<void> main() async {
     },
   );
 
-  final supportDir = await getApplicationSupportDirectory();
   final settings = await Settings.load();
   // Before the first frame, so the window never flashes the wrong decorations.
   await applyWindowDecorations(
@@ -52,6 +67,8 @@ Future<void> main() async {
         settingsProvider.overrideWith((ref) => settings),
         databaseProvider.overrideWithValue(db),
         artworkDirProvider.overrideWithValue(artworkDir),
+        singleInstanceProvider.overrideWithValue(instance),
+        initialFilesProvider.overrideWithValue(openableFiles(args)),
       ],
       child: const PixelPlayApp(),
     ),
@@ -67,17 +84,48 @@ class PixelPlayApp extends ConsumerStatefulWidget {
 
 class _PixelPlayAppState extends ConsumerState<PixelPlayApp> {
   bool _setupDone = false;
+  StreamSubscription<List<String>>? _opened;
 
   @override
   void initState() {
     super.initState();
     _setupDone = ref.read(settingsProvider).setupComplete;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(playerProvider).restoreQueue();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final opened = ref.read(initialFilesProvider);
+      // Files given on the command line win over the saved queue: the user
+      // double-clicked something and expects to hear it, not what they were
+      // listening to yesterday.
+      if (opened.isEmpty) {
+        await ref.read(playerProvider).restoreQueue();
+      } else {
+        await openFiles(ref, opened);
+      }
       // Publishes the player on MPRIS2 where there is a session bus, which is
       // what makes the media keys and the desktop's own media widget work.
       ref.read(mprisProvider);
+      ref.read(notificationsProvider);
+      // Installs the tray icon if the user has asked for one; harmless if not.
+      await applyTraySettings(ref);
+      _listenForOpenedFiles();
     });
+  }
+
+  /// Files handed over by a later launch: play them and come to the front, the
+  /// way opening a file in any other player does.
+  void _listenForOpenedFiles() {
+    final instance = ref.read(singleInstanceProvider);
+    if (instance == null) return;
+    _opened = instance.opened.listen((files) async {
+      await openFiles(ref, files);
+      await windowManager.show();
+      await windowManager.focus();
+    });
+  }
+
+  @override
+  void dispose() {
+    _opened?.cancel();
+    super.dispose();
   }
 
   @override

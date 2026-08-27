@@ -6,6 +6,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   media_kit_libs_windows_audio
   screen_retriever_windows
+  tray_manager
   window_manager
 )
 

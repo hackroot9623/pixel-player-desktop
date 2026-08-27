@@ -234,8 +234,38 @@ out of testing it against the real bus, neither of which a unit test could have 
 Verified over the session bus: properties readable, PlayPause and Next drive the player,
 metadata follows the track.
 
-Still to do: system tray, notifications, single-instance + file-association
-(`ExternalPlayerActivity` equivalent), Chromecast/DLNA.
+**Single instance and file association are in.** Android had
+`ExternalPlayerActivity` and let the system decide whether to reuse the task. Here the app
+arranges both halves: a loopback socket on a fixed port is the rendezvous, and a second
+launch hands its file list to the running copy and exits rather than starting a rival
+player that fights for the audio device. A lock file could say "someone is running" but
+could not carry the files, which is why it is a socket.
+
+The message is authorised by a token in the app's state directory, mode 600, so another
+user on the machine cannot make the app open arbitrary paths; paths are filtered to audio
+extensions and capped. If the port turns out to be held by something that is not us, the
+app runs anyway without the feature — refusing to start would be worse.
+
+Files on the command line beat the restored queue, `file://` URIs are accepted because file
+managers send them, and a file already in the library is played as its library row so
+favourites and edited tags are the ones the user knows.
+
+**Notifications are in**, through `org.freedesktop.Notifications`, and off by default:
+Android needed a notification to be controllable at all, while here MPRIS already puts
+controls in the shell. Each popup reuses the previous id so an album leaves one popup that
+changes rather than forty in the tray, and transport buttons are only offered when the
+server advertises the `actions` capability.
+
+**Tray is in**, via tray_manager, with close-to-tray — refused without an icon, since there
+would be no way back to the window. Both off by default. Building it needed
+`-Wno-deprecated-declarations`: libayatana-appindicator is deprecated upstream in its
+entirety while remaining the only way to put an icon in a tray, and the project compiles
+with `-Werror`.
+
+Verified live: a second launch with a file argument exits 0 and the running copy switches to
+that track, which MPRIS then reports.
+
+Still to do: Chromecast/DLNA.
 
 ### Phase 8 — Long tail
 Backup/restore, GitHub update check, About/OSS licenses, easter egg (BrickBreaker),

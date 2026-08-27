@@ -32,6 +32,9 @@ import '../data/ai/ai_playlist_generator.dart';
 import '../data/smart/smart_playlists.dart';
 import '../data/tags/tag_writer.dart';
 import '../platform/mpris.dart';
+import '../platform/notifications.dart';
+import '../platform/single_instance.dart';
+import '../platform/tray.dart';
 import '../player/equalizer.dart';
 import '../player/player_service.dart';
 
@@ -704,6 +707,47 @@ final artworkSchemesProvider =
 
 // ------------------------------------------------------- desktop integration
 
+/// The single-instance claim, so the app can listen for files opened later.
+///
+/// Overridden in `main`, which is the only place that can claim it — by the time
+/// any widget builds, the decision has already been made.
+final singleInstanceProvider = Provider<SingleInstance?>((ref) => null);
+
+/// Files this launch was asked to open, from the command line.
+final initialFilesProvider = Provider<List<String>>((ref) => const []);
+
+/// Plays files handed over by the file manager.
+///
+/// A file already in the library is played as its library row, so favourites,
+/// play counts and edited tags are the ones the user knows. Anything else is
+/// read on the spot and played without being added to the library — opening a
+/// file is not the same as asking for it to be catalogued.
+///
+/// ponytail: tags are read on the UI isolate. That is a few milliseconds per
+/// file and a file manager hands over a handful; a whole folder dropped at once
+/// would want the scanner's isolate.
+Future<void> openFiles(WidgetRef ref, List<String> paths) async {
+  if (paths.isEmpty) return;
+  final library = ref.read(libraryProvider).songs;
+  final artworkDir = ref.read(artworkDirProvider);
+
+  final songs = <Song>[];
+  for (final path in paths) {
+    final known = library.where((song) => song.path == path).firstOrNull;
+    if (known != null) {
+      songs.add(known);
+      continue;
+    }
+    final file = File(path);
+    if (!file.existsSync()) continue;
+    final song = readSongFile(file, artworkDir: artworkDir);
+    if (song != null) songs.add(song);
+  }
+  if (songs.isEmpty) return;
+
+  await ref.read(playerProvider).playQueue(songs);
+}
+
 /// Publishes the player over MPRIS2 so the desktop can drive it.
 ///
 /// Read once at startup; nothing in the UI waits on the result, so it is a
@@ -724,6 +768,46 @@ final mprisProvider = Provider<Future<MprisService?>>((ref) {
   ref.onDispose(() async => (await pending)?.dispose());
   return pending;
 });
+
+/// Announces track changes through the desktop's notification server.
+///
+/// Same two rules as [mprisProvider]: `read` the player rather than watching a
+/// ChangeNotifier, and return the future so the service is not collected.
+final notificationsProvider = Provider<Future<NotificationService?>>((ref) {
+  final player = ref.read(playerProvider);
+  final settings = ref.read(settingsProvider);
+
+  final pending = NotificationService.attach(player).then((service) {
+    if (service == null) return null;
+    service.enabled = settings.trackNotifications;
+
+    void onChange() {
+      // Read every time: the setting can be toggled while the app runs.
+      service.enabled = settings.trackNotifications;
+      final song = player.current;
+      // Only while playing, and the service itself ignores a repeat of the
+      // track it last announced.
+      if (song != null && player.playing) service.announce(song);
+    }
+
+    player.addListener(onChange);
+    ref.onDispose(() => player.removeListener(onChange));
+    return service;
+  });
+
+  ref.onDispose(() async => (await pending)?.dispose());
+  return pending;
+});
+
+/// Brings the tray icon into line with the settings.
+///
+/// Called at startup and whenever the tray settings change. Deliberately not a
+/// provider that watches Settings: Settings is a ChangeNotifier, so every
+/// preference write would tear the icon down and reinstall it.
+Future<void> applyTraySettings(WidgetRef ref) => applyTray(
+  ref.read(playerProvider),
+  ref.read(settingsProvider),
+);
 
 // -------------------------------------------------------------- equalizer
 

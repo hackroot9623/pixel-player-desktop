@@ -41,7 +41,12 @@ endif()
 # of modifying this function.
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
-  target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  # -Wno-deprecated-declarations because tray_manager's Linux plugin uses
+  # libayatana-appindicator, whose whole API is marked deprecated upstream while
+  # remaining the only way to put an icon in the tray. Without this the plugin
+  # cannot compile under -Werror, and the warning is not about our code.
+  target_compile_options(${TARGET} PRIVATE -Wall -Werror
+                                           -Wno-deprecated-declarations)
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()

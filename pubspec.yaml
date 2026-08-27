@@ -52,6 +52,7 @@ dependencies:
   media_kit_libs_macos_audio: ^1.1.4
   sqlite3_flutter_libs: ^0.6.0+eol
   dbus: ^0.7.15
+  tray_manager: ^0.5.3
 
 dev_dependencies:
   flutter_test:

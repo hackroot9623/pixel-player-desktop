@@ -8,5 +8,8 @@ Icon=com.theveloper.pixelplay_desktop
 Terminal=false
 Categories=AudioVideo;Audio;Player;
 Keywords=music;audio;player;playlist;
-MimeType=audio/mpeg;audio/flac;audio/x-flac;audio/mp4;audio/x-m4a;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/wav;audio/x-wav;
+MimeType=audio/mpeg;audio/mp3;audio/flac;audio/x-flac;audio/mp4;audio/x-m4a;audio/aac;audio/aacp;audio/ogg;audio/x-vorbis+ogg;audio/opus;audio/x-opus+ogg;audio/wav;audio/x-wav;audio/x-ms-wma;audio/aiff;audio/x-aiff;
+# One window: a second launch hands its files to the running copy.
+SingleMainWindow=true
+X-GNOME-UsesNotifications=true
 StartupWMClass=pixelplay_desktop

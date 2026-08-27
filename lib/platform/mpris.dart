@@ -337,7 +337,9 @@ class _MprisObject extends DBusObject {
     if (interface == mprisRootInterface) {
       return {
         'Identity': const DBusString('PixelPlayer'),
-        'DesktopEntry': const DBusString('pixelplayer'),
+        // Must match the installed .desktop basename, or the desktop cannot
+        // find our icon and name for the media widget.
+        'DesktopEntry': const DBusString('com.theveloper.pixelplay_desktop'),
         'CanQuit': const DBusBoolean(false),
         'CanRaise': const DBusBoolean(false),
         'HasTrackList': const DBusBoolean(false),
