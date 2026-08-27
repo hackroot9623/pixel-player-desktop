@@ -74,6 +74,9 @@ class _PixelPlayAppState extends ConsumerState<PixelPlayApp> {
     _setupDone = ref.read(settingsProvider).setupComplete;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(playerProvider).restoreQueue();
+      // Publishes the player on MPRIS2 where there is a session bus, which is
+      // what makes the media keys and the desktop's own media widget work.
+      ref.read(mprisProvider);
     });
   }
 

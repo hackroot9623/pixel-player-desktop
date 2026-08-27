@@ -169,3 +169,16 @@ exact chain it is generating.
 
 Switching the equalizer off removes the filter rather than flattening it: ten no-op biquads
 are still ten biquads in the signal path.
+
+## Desktop media controls (Linux)
+
+PixelPlayer publishes itself over MPRIS2, so the media keys work, and the player shows up
+wherever your desktop shows media: GNOME's media widget, KDE's panel, `playerctl`, and the
+lockscreen. Play, pause, next, previous, seek, volume and shuffle all come back the other
+way.
+
+Nothing to configure — it appears on the session bus as
+`org.mpris.MediaPlayer2.pixelplayer` when there is one. No session bus (a bare X session, a
+container) and the app carries on without it.
+
+macOS and Windows have their own APIs for this and are not wired up yet.

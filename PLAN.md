@@ -214,8 +214,28 @@ The generated chain was checked against real mpv, not just the docs: it is accep
 and `dynaudnorm`'s window turned out to need an odd frame count, which ffmpeg otherwise
 rounds up while logging about it.
 
-Still to do: MPRIS2 + media keys, system tray, notifications, single-instance +
-file-association (`ExternalPlayerActivity` equivalent), Chromecast/DLNA.
+**MPRIS2 is in.** On Android `MusicService` published a MediaSession and the system supplied
+the lockscreen controls and headset buttons. On Linux the same job is one D-Bus name,
+`org.mpris.MediaPlayer2.pixelplayer`, and the desktop takes it from there: GNOME's media
+widget, KDE's panel, the media keys, playerctl. Linux only — macOS wants
+MPNowPlayingInfoCenter and Windows SystemMediaTransportControls, so `attach` returns null
+elsewhere rather than pretending.
+
+The metadata mapping is pure and tested (microseconds not milliseconds, artists as an
+array, a track id that is a legal object path, `file://` URIs escaped). Two live bugs came
+out of testing it against the real bus, neither of which a unit test could have shown:
+
+- `ref.watch(playerProvider)` in the provider meant every `notifyListeners()` invalidated
+  it, so the D-Bus client was torn down and the bus name released a moment after being
+  claimed. `requestName` reported success and the name was simply gone. It has to be `read`.
+- The pending attach has to be *returned* from the provider. Kept in a local it was the
+  only reference to the running service, and the client was collected.
+
+Verified over the session bus: properties readable, PlayPause and Next drive the player,
+metadata follows the track.
+
+Still to do: system tray, notifications, single-instance + file-association
+(`ExternalPlayerActivity` equivalent), Chromecast/DLNA.
 
 ### Phase 8 — Long tail
 Backup/restore, GitHub update check, About/OSS licenses, easter egg (BrickBreaker),

@@ -260,10 +260,17 @@ class PlayerService extends ChangeNotifier {
     await _player.jump(index);
   }
 
+  /// Called on a deliberate jump in position.
+  ///
+  /// Ordinary progress needs no notification, but MPRIS clients cannot infer a
+  /// seek from a position they poll, so the desktop integration listens here.
+  void Function(Duration position)? onSeeked;
+
   Future<void> seek(Duration position) {
     // Move the thumb immediately; mpv confirms a frame or two later.
     _position = position;
     positionListenable.value = position;
+    onSeeked?.call(position);
     return _player.seek(position);
   }
 

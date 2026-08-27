@@ -31,6 +31,7 @@ import '../data/ai/ai_client.dart';
 import '../data/ai/ai_playlist_generator.dart';
 import '../data/smart/smart_playlists.dart';
 import '../data/tags/tag_writer.dart';
+import '../platform/mpris.dart';
 import '../player/equalizer.dart';
 import '../player/player_service.dart';
 
@@ -700,6 +701,29 @@ final artworkSchemesProvider =
       _schemeCache[key] = result;
       return result;
     });
+
+// ------------------------------------------------------- desktop integration
+
+/// Publishes the player over MPRIS2 so the desktop can drive it.
+///
+/// Read once at startup; nothing in the UI waits on the result, so it is a
+/// Provider holding the pending attach rather than a FutureProvider.
+///
+/// The future is *returned* rather than kept in a local: it is the only strong
+/// reference to the running service, and without it the D-Bus client is
+/// collected — the bus name is claimed successfully and then silently
+/// disappears, which is exactly what happened the first time.
+final mprisProvider = Provider<Future<MprisService?>>((ref) {
+  // `read`, not `watch`: PlayerService is a ChangeNotifier, so watching it
+  // invalidates this provider on every notifyListeners — which tore the D-Bus
+  // client down and released the bus name a moment after claiming it. The
+  // player instance itself lives as long as the app.
+  final pending = MprisService.attach(ref.read(playerProvider));
+  // Returned rather than kept in a local so the container holds the only strong
+  // reference to the running service.
+  ref.onDispose(() async => (await pending)?.dispose());
+  return pending;
+});
 
 // -------------------------------------------------------------- equalizer
 

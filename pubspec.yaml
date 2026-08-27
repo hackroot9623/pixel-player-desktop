@@ -51,6 +51,7 @@ dependencies:
   media_kit_libs_windows_audio: ^1.0.9
   media_kit_libs_macos_audio: ^1.1.4
   sqlite3_flutter_libs: ^0.6.0+eol
+  dbus: ^0.7.15
 
 dev_dependencies:
   flutter_test:
