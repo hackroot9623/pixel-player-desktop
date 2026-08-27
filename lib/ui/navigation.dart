@@ -11,7 +11,6 @@ import 'screens/ai_settings_screen.dart';
 import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/remote_browse_screen.dart';
-import 'screens/spotify_import_screen.dart';
 import 'screens/telegram_setup_screen.dart';
 import 'screens/youtube_setup_screen.dart';
 import 'screens/smart_playlist_screen.dart';
@@ -63,9 +62,6 @@ void openTelegramSetup(BuildContext context, {String? accountId}) =>
 
 void openYoutubeSetup(BuildContext context, {String? accountId}) =>
     _push(context, YoutubeSetupScreen(accountId: accountId));
-
-void openSpotifyImport(BuildContext context) =>
-    _push(context, const SpotifyImportScreen());
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());
