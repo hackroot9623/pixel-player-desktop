@@ -12,6 +12,7 @@ import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/remote_browse_screen.dart';
 import 'screens/telegram_setup_screen.dart';
+import 'screens/cast_screen.dart';
 import 'screens/drive_setup_screen.dart';
 import 'screens/equalizer_screen.dart';
 import 'screens/youtube_setup_screen.dart';
@@ -70,6 +71,8 @@ void openDriveSetup(BuildContext context, {String? accountId}) =>
 
 void openEqualizer(BuildContext context) =>
     _push(context, const EqualizerScreen());
+
+void openCast(BuildContext context) => _push(context, const CastScreen());
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());

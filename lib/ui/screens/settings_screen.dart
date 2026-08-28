@@ -199,6 +199,18 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openAccounts(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.cast_rounded),
+                  title: const Text('Cast'),
+                  subtitle: Text(
+                    ref.watch(castControllerProvider).casting
+                        ? 'Playing on '
+                              '${ref.watch(castControllerProvider).target!.name}'
+                        : 'Send the music to a Chromecast or DLNA speaker',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openCast(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.tune_rounded),
                   title: const Text('Equalizer'),
                   subtitle: Text(

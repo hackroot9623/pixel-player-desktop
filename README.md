@@ -204,3 +204,17 @@ Both off by default, under Settings → Desktop:
   without an extension), in which case nothing appears.
 - **Close to tray** — closing the window keeps the music going. Needs the tray icon, or
   there would be no way back to the window.
+
+## Cast (Chromecast and DLNA)
+
+Settings → Cast finds Chromecast devices and DLNA renderers on your network and sends the
+music to one. The speaker fetches the audio from this computer, so both have to be on the
+same network — a guest network or an active VPN will hide the device.
+
+While casting, PixelPlayer still runs the show: play, pause, skip and seek from anywhere in
+the app drive the speaker, and your local output stays quiet. The queue, shuffle and repeat
+are still decided here and each track is handed over as it starts.
+
+What cannot be cast: a Google Drive track, because its URL needs a private header a speaker
+cannot be given. Jellyfin and Navidrome sign their stream URLs, so those are passed straight
+to the device and nothing is served from here at all.

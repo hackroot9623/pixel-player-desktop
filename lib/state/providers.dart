@@ -31,6 +31,7 @@ import '../data/ai/ai_client.dart';
 import '../data/ai/ai_playlist_generator.dart';
 import '../data/smart/smart_playlists.dart';
 import '../data/tags/tag_writer.dart';
+import '../platform/cast/cast_controller.dart';
 import '../platform/mpris.dart';
 import '../platform/notifications.dart';
 import '../platform/single_instance.dart';
@@ -798,6 +799,14 @@ final notificationsProvider = Provider<Future<NotificationService?>>((ref) {
   ref.onDispose(() async => (await pending)?.dispose());
   return pending;
 });
+
+/// The cast session, if any.
+///
+/// `read` on the player for the usual reason: it is a ChangeNotifier, and
+/// watching it would tear down a live cast session on every notification.
+final castControllerProvider = ChangeNotifierProvider<CastController>(
+  (ref) => CastController(ref.read(playerProvider)),
+);
 
 /// Brings the tray icon into line with the settings.
 ///

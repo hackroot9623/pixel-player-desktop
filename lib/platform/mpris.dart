@@ -164,7 +164,7 @@ class MprisService {
   void _start() {
     _publish();
     _player.addListener(_publish);
-    _player.onSeeked = notifySeeked;
+    _player.addSeekListener(notifySeeked);
   }
 
   /// Pushes whatever changed since last time.
@@ -222,7 +222,7 @@ class MprisService {
 
   Future<void> dispose() async {
     _player.removeListener(_publish);
-    _player.onSeeked = null;
+    _player.removeSeekListener(notifySeeked);
     try {
       await _client.releaseName(mprisBusName);
     } catch (_) {

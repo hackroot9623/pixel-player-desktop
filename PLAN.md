@@ -199,7 +199,7 @@ side and in either convention (glyphs or traffic lights). Includes the drag
 region, double-click-to-maximise, and our own edge/corner resize handles —
 hiding the decorations also removes the compositor's resize borders.
 
-### Phase 7 — Desktop platform integration 🟡
+### Phase 7 — Desktop platform integration ✅
 **Equalizer is in.** Android drove four system effects from `android.media.audiofx`
 (`Equalizer`, `BassBoost`, `Virtualizer`, `LoudnessEnhancer`); desktop has no such service,
 but mpv carries ffmpeg's filters, so all four become one `af` string: an `equalizer` biquad
@@ -265,7 +265,42 @@ with `-Werror`.
 Verified live: a second launch with a file argument exits 0 and the running copy switches to
 that track, which MPRIS then reports.
 
-Still to do: Chromecast/DLNA.
+**Chromecast and DLNA are in**, and phase 7 is complete.
+
+Both reduce to the same three verbs — hand over a URL, transport, volume — so they sit
+behind one controller. Neither protocol can read a local file, so casting also means running
+a small HTTP server here for as long as a track plays. Only explicitly published files are
+reachable, each under a random 32-hex id, and there is no path in the URL to traverse.
+
+The design decision worth recording: **PixelPlayer stays the brain.** The queue, shuffle,
+repeat and what comes next are still decided locally and the device is handed one track at a
+time. Pushing a whole playlist and letting the device manage it means two things that both
+believe they are in charge, and they disagree the moment the queue is reordered. So while
+casting, mpv is paused, and when the device reports the track finished the queue advances
+here and the next track is pushed.
+
+DLNA is SSDP (a UDP multicast question) → device description XML → SOAP against the
+AVTransport control URL, with DIDL-Lite metadata because a good number of renderers play
+nothing without it. Chromecast is CASTV2: length-prefixed protobuf carrying JSON. The one
+message type has six fields, so it is encoded by hand rather than adding a protobuf compiler
+and a generated file for forty bytes of wire format. Heartbeats every five seconds or the
+device hangs up; the TLS certificate is self-signed and device-specific so it cannot be
+verified, which is also the reason nothing but "play this URL on my LAN" ever crosses that
+socket.
+
+Two things the tests pin down that a device would only fail at silently: Range handling
+(a renderer that asks for a byte offset and gets the whole file back tends to stop, so an
+unsatisfiable range is answered 416), and which local address to advertise — this machine is
+on a LAN *and* a VPN, and only the address on the device's own subnet is reachable from it.
+
+A Drive track cannot be cast: its URL needs an Authorization header, and there is no way to
+give a speaker one. That is refused with an explanation rather than failing at the device.
+A Jellyfin or Navidrome URL signs itself and is passed through untouched.
+
+Verified live as far as this network allows: discovery runs clean on both protocols (nothing
+answered — there is no Cast or DLNA device here), the server binds, and a ranged fetch over
+the LAN address returns 206 with the right content-range. Nothing has been played on a real
+speaker.
 
 ### Phase 8 — Long tail
 Backup/restore, GitHub update check, About/OSS licenses, easter egg (BrickBreaker),

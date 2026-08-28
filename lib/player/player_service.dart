@@ -260,17 +260,27 @@ class PlayerService extends ChangeNotifier {
     await _player.jump(index);
   }
 
-  /// Called on a deliberate jump in position.
+  /// Listeners for a deliberate jump in position.
   ///
-  /// Ordinary progress needs no notification, but MPRIS clients cannot infer a
-  /// seek from a position they poll, so the desktop integration listens here.
-  void Function(Duration position)? onSeeked;
+  /// Ordinary progress needs no notification, but a remote cannot infer a seek
+  /// from a position it polls. A list rather than one slot because both MPRIS
+  /// and casting need it, and whoever registered second would otherwise
+  /// silently replace the first.
+  final _seekListeners = <void Function(Duration position)>[];
+
+  void addSeekListener(void Function(Duration position) listener) =>
+      _seekListeners.add(listener);
+
+  void removeSeekListener(void Function(Duration position) listener) =>
+      _seekListeners.remove(listener);
 
   Future<void> seek(Duration position) {
     // Move the thumb immediately; mpv confirms a frame or two later.
     _position = position;
     positionListenable.value = position;
-    onSeeked?.call(position);
+    for (final listener in [..._seekListeners]) {
+      listener(position);
+    }
     return _player.seek(position);
   }
 
