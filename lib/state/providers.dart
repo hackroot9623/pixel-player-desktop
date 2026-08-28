@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../data/artists/artist_image_repository.dart';
 import '../data/backup/backup_service.dart';
 import '../data/db/database.dart';
+import '../data/download/download_controller.dart';
 import '../data/update/update_check.dart';
 import '../data/lyrics/lrclib_client.dart';
 import '../data/lyrics/lyrics_repository.dart';
@@ -707,6 +708,18 @@ final artworkSchemesProvider =
       _schemeCache[key] = result;
       return result;
     });
+
+// ----------------------------------------------------------------- downloads
+
+/// Drives spotdl for the download screen.
+///
+/// Rescans when a run finishes so what landed on disk joins the library without
+/// the user having to go and press scan.
+final downloadControllerProvider = ChangeNotifierProvider<DownloadController>(
+  (ref) => DownloadController(
+    onFinished: (_) => ref.read(libraryProvider.notifier).rescan(),
+  ),
+);
 
 // ------------------------------------------------------------------- backup
 

@@ -245,3 +245,36 @@ whether MPRIS is actually on the session bus, your paths and library counts. Cop
 into a bug report. If a remote source is not working, the answer is usually here.
 
 And if you tap the version enough times, there is a game.
+
+## Downloading a Spotify playlist
+
+Settings → Download from Spotify takes a public playlist, album, artist or track link and
+keeps the files. It drives [spotdl](https://github.com/spotDL/spotify-downloader), which you
+install yourself — the same arrangement as yt-dlp, and for the same reason: YouTube breaks
+audio extraction every few weeks and your package manager is better placed to keep up than a
+PixelPlayer release.
+
+```bash
+pipx install spotdl
+```
+
+Be clear about what this is. **Nothing decrypts Spotify** — its audio is protected and never
+touched. The playlist's *metadata* is read from Spotify, each track is then found on
+**YouTube**, downloaded, and tagged with the Spotify details and cover art. So the tags are
+exact and the audio is a match rather than the original master:
+
+- Expect the occasional live take or remix where the match went wrong.
+- Quality sits below Spotify's 320 kbps — YouTube music audio is typically 128–160 kbps.
+  Choosing M4A keeps the source audio; MP3 transcodes it and loses a little more.
+- **A cookies file is usually required.** YouTube refuses most downloads without one, the
+  same wall the YouTube Music source hits. The screen reuses whatever cookies you gave that
+  source.
+
+Files land in a folder inside your library by default, and the library rescans itself when a
+run finishes. A second run only fetches what the playlist gained, unless you ask it to
+overwrite.
+
+Downloading copyrighted tracks is likely infringement where you live, and it is against
+YouTube's terms of service. Your machine, your call — but note that this feature alone makes
+the app ineligible for Flathub, which removes apps whose purpose is downloading copyrighted
+media from streaming services.

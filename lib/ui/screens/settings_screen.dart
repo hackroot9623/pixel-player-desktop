@@ -199,6 +199,16 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openAccounts(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.download_rounded),
+                  title: const Text('Download from Spotify'),
+                  subtitle: const Text(
+                    'Paste a playlist link and keep the files — tags from '
+                    'Spotify, audio from YouTube, via spotdl',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openDownloads(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.backup_outlined),
                   title: const Text('Backup'),
                   subtitle: const Text(

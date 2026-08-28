@@ -347,3 +347,38 @@ pasting it into a bug report.
 **BrickBreaker.** The board is a unit square and the rules are a pure `step(dt)`, so corner
 bounces, two-hit bricks, one-brick-per-frame and the dt clamp that stops a stalled frame
 tunnelling the ball are all tested without a frame being drawn.
+
+### Beyond the plan — the Spotify downloader
+
+Not in the original plan; added on request. Takes a public Spotify link and keeps the files.
+
+The thing to understand about every tool of this kind, including the web ones: nobody
+decrypts Spotify. Its audio is DRM-protected and is not involved. The *metadata* comes from
+Spotify, the *audio* comes from YouTube, and the two are married at the end by writing
+Spotify's tags and cover art onto the downloaded file. A "Spotify downloader" is a YouTube
+downloader wearing Spotify's tags.
+
+So it is driven rather than reimplemented: spotdl already does metadata → match → download →
+tag → cover, and yt-dlp underneath it absorbs YouTube's constant breakage. Reimplementing
+that here would have meant owning that maintenance for no gain. The pieces this app already
+had — a yt-dlp client, a tag writer, ffmpeg, a scanner — would have covered maybe 60% of it,
+and the missing 40% is exactly the part that rots.
+
+The seam is a `ProcessLauncher` returning merged stdout/stderr lines plus an exit code, which
+makes the whole client testable without a binary: 28 tests over the command line, the output
+parsing and the controller's bookkeeping. Unknown output lines become log entries rather than
+errors, because spotdl's wording changes between versions and the log is what makes a
+mismatch visible instead of a silent stall.
+
+Two things worth recording:
+
+- spotdl is not installed on the development machine, so the flags follow spotdl v4's
+  documented CLI and have **not** been exercised against the real binary. The design
+  compensates: the version probe confirms it exists, and spotdl's own stderr is surfaced
+  verbatim, so a renamed flag shows up as a readable error rather than a hang.
+- A test caught a host-suffix bug in the link validator: `endsWith('spotify.com')` accepts
+  `notspotify.com`. It now requires an exact match or a leading dot.
+
+This feature also settles the Flathub question in the negative on its own — Flathub removes
+apps whose purpose is downloading copyrighted media from streaming services — independently
+of the upstream licence problem.

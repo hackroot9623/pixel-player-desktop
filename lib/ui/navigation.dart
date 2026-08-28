@@ -17,6 +17,7 @@ import 'screens/backup_screen.dart';
 import 'screens/brick_breaker_screen.dart';
 import 'screens/cast_screen.dart';
 import 'screens/diagnostics_screen.dart';
+import 'screens/download_screen.dart';
 import 'screens/drive_setup_screen.dart';
 import 'screens/equalizer_screen.dart';
 import 'screens/youtube_setup_screen.dart';
@@ -79,6 +80,9 @@ void openEqualizer(BuildContext context) =>
 void openCast(BuildContext context) => _push(context, const CastScreen());
 
 void openBackup(BuildContext context) => _push(context, const BackupScreen());
+
+void openDownloads(BuildContext context) =>
+    _push(context, const DownloadScreen());
 
 void openAbout(BuildContext context) => _push(context, const AboutScreen());
 
