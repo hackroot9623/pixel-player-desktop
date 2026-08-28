@@ -205,6 +205,21 @@ class PlayerService extends ChangeNotifier {
     }
   }
 
+  /// Which libmpv is actually playing the audio.
+  ///
+  /// Asked of the running player rather than assumed from the bundled version:
+  /// on Linux the system library is used when there is one, so the answer is a
+  /// property of this machine.
+  Future<String> mpvVersion() async {
+    final platform = _player.platform;
+    if (platform is! NativePlayer) return 'unknown';
+    try {
+      return await platform.getProperty('mpv-version');
+    } catch (_) {
+      return 'unknown';
+    }
+  }
+
   /// The registered headers whose prefix matches [url], or null for none.
   static Map<String, String>? headersForUrl(String url) {
     for (final MapEntry(key: prefix, value: headers)

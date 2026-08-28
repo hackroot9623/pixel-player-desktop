@@ -302,6 +302,48 @@ answered — there is no Cast or DLNA device here), the server binds, and a rang
 the LAN address returns 206 with the right content-range. Nothing has been played on a real
 speaker.
 
-### Phase 8 — Long tail
-Backup/restore, GitHub update check, About/OSS licenses, easter egg (BrickBreaker),
-diagnostics + device capabilities, changelog/beta sheets.
+### Phase 8 — Long tail ✅
+
+**Backup/restore.** Same module-per-section shape as the Android app, and the same section
+keys, so a file from either is at least legible to the other. Restore is per section, because
+the usual reason to open a backup is to get one thing out of it.
+
+Two decisions worth recording. First, restore **adds**: a playlist that already exists keeps
+its songs and gains the backup's, since the library has usually moved on and losing tracks
+to a restore is worse than a longer playlist. Second, the desktop problem Android does not
+have — a backup is often restored on a different machine, where the music lives elsewhere —
+so every song reference carries its tags as well as its path and matching falls back to a
+normalised title/artist/album key. What matches neither is counted and reported, never
+silently dropped, and history rows already present are skipped so restoring twice does not
+double every play count.
+
+Nothing secret is written, and that is enforced in one place rather than at each call site:
+`isSecretPreference` filters keys, and remote accounts travel as server and username with
+the password stripped, so a restore recreates the server and asks for the password again.
+
+**Update check.** Asks GitHub and stops there — no download, no self-replacing binary; the
+app is installed from a tarball or a package. Off by default, since it is the only thing in
+the app that contacts a server the user did not configure. The awkward part is this repo's
+own release shape: CI publishes a rolling `latest` prerelease on every push, so
+`/releases/latest` is the wrong endpoint (it skips prereleases, and the rolling tag is not a
+version). The check reads the list and takes the newest tag that parses as a version.
+
+Run live against the real repository, which caught a defect no unit test would have: there is
+no `v*` tag yet, so `latest` comes back null and the screen claimed "you are up to date" —
+asserting something it does not know. There is now a distinct `noReleases` state saying the
+releases page has only the rolling build.
+
+**About and licences.** Version, `showLicensePage` for every package, a link to the source,
+and the way into diagnostics. Tapping the version seven times opens the easter egg, same
+count as the phone.
+
+**Diagnostics.** Every remote source here depends on something the user supplies — yt-dlp,
+TDLib, a session bus — so "why does this not work" is nearly always answered by one list:
+libmpv in use, yt-dlp and TDLib presence, whether MPRIS is actually published (asked of the
+bus from outside, since the app believing it published is exactly what went wrong when MPRIS
+was built), session type, paths, library counts. Copyable as text, because the point is
+pasting it into a bug report.
+
+**BrickBreaker.** The board is a unit square and the rules are a pure `step(dt)`, so corner
+bounces, two-hit bricks, one-brick-per-frame and the dt clamp that stops a stalled frame
+tunnelling the ball are all tested without a frame being drawn.

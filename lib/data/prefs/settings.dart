@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../ai/ai_provider.dart';
+import '../backup/backup_format.dart';
 import '../remote/remote_account.dart';
 import '../models/lyrics.dart';
 import '../models/sort_option.dart';
@@ -265,6 +266,58 @@ class Settings extends ChangeNotifier {
 
   bool get aiExtendedFields => _prefs.getBool('ai_extended_fields') ?? false;
   set aiExtendedFields(bool value) => _set('ai_extended_fields', value);
+
+  // ------------------------------------------------------------------ updates
+
+  /// Whether to ask GitHub for a newer release at startup.
+  ///
+  /// Off by default: contacting a server on every launch is not something to do
+  /// to somebody without asking. The About screen always has a button.
+  bool get checkForUpdates => _prefs.getBool('check_updates') ?? false;
+  set checkForUpdates(bool value) => _set('check_updates', value);
+
+  /// The newest release seen, so the settings row can show a badge without
+  /// making a network call every time it is drawn.
+  String get lastKnownRelease => _prefs.getString('last_known_release') ?? '';
+  set lastKnownRelease(String value) => _set('last_known_release', value);
+
+  // ------------------------------------------------------------------ backup
+
+  /// Every preference that is safe to write to a file.
+  ///
+  /// Secrets are filtered here rather than at the call site, so a new key that
+  /// happens to hold a token cannot leak into a backup by being forgotten.
+  Map<String, Object?> exportPreferences() => {
+    for (final key in _prefs.getKeys())
+      if (!isSecretPreference(key)) key: _prefs.get(key),
+  };
+
+  /// Applies preferences from a backup, ignoring anything unsafe or unknown.
+  ///
+  /// Returns how many were applied, so a restore can report a number rather than
+  /// a shrug.
+  Future<int> importPreferences(Map<String, Object?> values) async {
+    var applied = 0;
+    for (final entry in values.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      if (isSecretPreference(key)) continue;
+      final ok = switch (value) {
+        final bool v => await _prefs.setBool(key, v),
+        final int v => await _prefs.setInt(key, v),
+        final double v => await _prefs.setDouble(key, v),
+        final String v => await _prefs.setString(key, v),
+        // shared_preferences only stores List<String>; anything else in the file
+        // was not written by us.
+        final List<Object?> v when v.every((e) => e is String) =>
+          await _prefs.setStringList(key, v.cast<String>()),
+        _ => false,
+      };
+      if (ok) applied++;
+    }
+    notifyListeners();
+    return applied;
+  }
 
   // ---------------------------------------------------------- desktop shell
 

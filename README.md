@@ -218,3 +218,29 @@ are still decided here and each track is handed over as it starts.
 What cannot be cast: a Google Drive track, because its URL needs a private header a speaker
 cannot be given. Jellyfin and Navidrome sign their stream URLs, so those are passed straight
 to the device and nothing is served from here at all.
+
+## Backup and restore
+
+Settings → Backup writes one JSON file with the parts of the app that are yours: playlists,
+favourites, lyrics, listening history, search history, music folders, settings, equalizer,
+and your remote accounts **without their passwords**. Not the music itself, and never an API
+key, a password or a sign-in token — a backup is a file people email to themselves.
+
+Restoring is per section, and it adds rather than replaces: a playlist you already have keeps
+its songs and gains the backup's. Songs are recorded by path *and* by their tags, so a backup
+restored on another machine still finds most of your library even if the music lives
+somewhere else. Anything it cannot find is counted and reported rather than dropped quietly,
+and restoring the same file twice will not double your play counts.
+
+## About, updates and diagnostics
+
+Settings → About has the version, the licence of every package the app is built from, and a
+button to ask GitHub whether there is a newer release. It only tells you and offers the link:
+nothing is downloaded and the binary never replaces itself. Startup checks are off by
+default — that is the only request this app makes to a server you did not configure.
+
+Diagnostics lists what this machine has and what the app found: libmpv, yt-dlp, TDLib,
+whether MPRIS is actually on the session bus, your paths and library counts. Copy it whole
+into a bug report. If a remote source is not working, the answer is usually here.
+
+And if you tap the version enough times, there is a game.

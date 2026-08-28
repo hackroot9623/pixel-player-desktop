@@ -1067,6 +1067,100 @@ class MusicDatabase {
 
   // -------------------------------------------------------- search history
 
+  // ---------------------------------------------------------------- backup
+  //
+  // Narrow readers and writers for the backup file, rather than exposing the
+  // connection: a backup needs whole tables, which nothing else in the app does.
+
+  /// Every stored lyric, keyed by song id.
+  List<({String songId, String content, bool isSynced, String? source, int offsetMs})>
+  allLyrics() => [
+    for (final row in _db.select('SELECT * FROM lyrics'))
+      (
+        songId: row['song_id'] as String,
+        content: row['content'] as String,
+        isSynced: (row['is_synced'] as int) != 0,
+        source: row['source'] as String?,
+        offsetMs: row['offset_ms'] as int,
+      ),
+  ];
+
+  /// Listening history, newest first.
+  ///
+  /// Capped because this table grows without limit and a backup is meant to be
+  /// mailable; the oldest rows are the least interesting.
+  List<({String songId, int playedAt, int msPlayed})> allPlaybackHistory({
+    int limit = 20000,
+  }) => [
+    for (final row in _db.select(
+      'SELECT song_id, played_at, ms_played FROM playback_history '
+      'ORDER BY played_at DESC LIMIT ?',
+      [limit],
+    ))
+      (
+        songId: row['song_id'] as String,
+        playedAt: row['played_at'] as int,
+        msPlayed: row['ms_played'] as int,
+      ),
+  ];
+
+  /// Writes one history row at its original time, which [recordPlayback] cannot
+  /// do because it stamps now.
+  void insertPlayback({
+    required String songId,
+    required int playedAt,
+    required int msPlayed,
+  }) => _db.execute(
+    'INSERT INTO playback_history(song_id, played_at, ms_played) VALUES (?,?,?)',
+    [songId, playedAt, msPlayed],
+  );
+
+  /// True when this song already has history at this instant, so restoring the
+  /// same backup twice does not double every play count.
+  bool hasPlaybackAt(String songId, int playedAt) => _db
+      .select(
+        'SELECT 1 FROM playback_history WHERE song_id = ? AND played_at = ? '
+        'LIMIT 1',
+        [songId, playedAt],
+      )
+      .isNotEmpty;
+
+  /// The remote identity found for each artist, by name.
+  ///
+  /// Names rather than ids, and no local file paths: the ids are per-database and
+  /// the cached image lives in this machine's cache directory.
+  List<({String artist, int? remoteId, String? remoteName})>
+  allArtistImageIdentities() => [
+    for (final row in _db.select('''
+      SELECT a.name AS name, i.remote_id AS remote_id, i.remote_name AS remote_name
+      FROM artist_images i
+      JOIN artists a ON a.id = i.artist_id
+      WHERE i.remote_id IS NOT NULL OR i.remote_name IS NOT NULL
+    '''))
+      (
+        artist: row['name'] as String,
+        remoteId: row['remote_id'] as int?,
+        remoteName: row['remote_name'] as String?,
+      ),
+  ];
+
+  /// Remembers a remote identity for an artist without claiming to have the
+  /// picture: the fetcher can then skip the search when it next runs.
+  void rememberArtistIdentity(
+    int artistId, {
+    int? remoteId,
+    String? remoteName,
+  }) => _db.execute(
+    '''
+    INSERT INTO artist_images (artist_id, remote_id, remote_name, status)
+    VALUES (?,?,?,'unknown')
+    ON CONFLICT(artist_id) DO UPDATE SET
+      remote_id = COALESCE(excluded.remote_id, artist_images.remote_id),
+      remote_name = COALESCE(excluded.remote_name, artist_images.remote_name)
+    ''',
+    [artistId, remoteId, remoteName],
+  );
+
   void recordSearch(String query) {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;

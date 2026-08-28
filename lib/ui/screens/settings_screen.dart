@@ -199,6 +199,31 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openAccounts(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.backup_outlined),
+                  title: const Text('Backup'),
+                  subtitle: const Text(
+                    'Save your playlists, favourites and settings to a file, '
+                    'or restore from one',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openBackup(context),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.info_outline_rounded),
+                  title: const Text('About'),
+                  subtitle: Text(
+                    switch (settings.lastKnownRelease) {
+                      '' => 'Version, licences and diagnostics',
+                      final latest
+                          when latest != ref.watch(appVersionProvider) =>
+                        'Version $latest is available',
+                      _ => 'Version, licences and diagnostics',
+                    },
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openAbout(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.cast_rounded),
                   title: const Text('Cast'),
                   subtitle: Text(

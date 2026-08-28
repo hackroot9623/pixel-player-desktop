@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:media_kit/media_kit.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -47,6 +48,7 @@ Future<void> main(List<String> args) async {
     },
   );
 
+  final packageInfo = await PackageInfo.fromPlatform();
   final settings = await Settings.load();
   // Before the first frame, so the window never flashes the wrong decorations.
   await applyWindowDecorations(
@@ -69,6 +71,7 @@ Future<void> main(List<String> args) async {
         artworkDirProvider.overrideWithValue(artworkDir),
         singleInstanceProvider.overrideWithValue(instance),
         initialFilesProvider.overrideWithValue(openableFiles(args)),
+        appVersionProvider.overrideWithValue(packageInfo.version),
       ],
       child: const PixelPlayApp(),
     ),
@@ -107,6 +110,8 @@ class _PixelPlayAppState extends ConsumerState<PixelPlayApp> {
       // Installs the tray icon if the user has asked for one; harmless if not.
       await applyTraySettings(ref);
       _listenForOpenedFiles();
+      // Only if the user asked for it; it just remembers what it found.
+      await checkForUpdatesAtStartup(ref);
     });
   }
 

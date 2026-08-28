@@ -12,7 +12,11 @@ import 'screens/mashup_screen.dart';
 import 'screens/playlist_detail_screen.dart';
 import 'screens/remote_browse_screen.dart';
 import 'screens/telegram_setup_screen.dart';
+import 'screens/about_screen.dart';
+import 'screens/backup_screen.dart';
+import 'screens/brick_breaker_screen.dart';
 import 'screens/cast_screen.dart';
+import 'screens/diagnostics_screen.dart';
 import 'screens/drive_setup_screen.dart';
 import 'screens/equalizer_screen.dart';
 import 'screens/youtube_setup_screen.dart';
@@ -73,6 +77,16 @@ void openEqualizer(BuildContext context) =>
     _push(context, const EqualizerScreen());
 
 void openCast(BuildContext context) => _push(context, const CastScreen());
+
+void openBackup(BuildContext context) => _push(context, const BackupScreen());
+
+void openAbout(BuildContext context) => _push(context, const AboutScreen());
+
+void openDiagnostics(BuildContext context) =>
+    _push(context, const DiagnosticsScreen());
+
+void openBrickBreaker(BuildContext context) =>
+    _push(context, const BrickBreakerScreen());
 
 void openPaletteStyle(BuildContext context) =>
     _push(context, const PaletteStyleScreen());

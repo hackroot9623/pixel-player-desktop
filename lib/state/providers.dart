@@ -7,7 +7,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../data/artists/artist_image_repository.dart';
+import '../data/backup/backup_service.dart';
 import '../data/db/database.dart';
+import '../data/update/update_check.dart';
 import '../data/lyrics/lrclib_client.dart';
 import '../data/lyrics/lyrics_repository.dart';
 import '../data/models/lyrics.dart';
@@ -705,6 +707,39 @@ final artworkSchemesProvider =
       _schemeCache[key] = result;
       return result;
     });
+
+// ------------------------------------------------------------------- backup
+
+/// The app's own version, read from the bundle at startup.
+///
+/// Overridden in `main`, because reading it is async and every caller wants it
+/// synchronously — a version string is not worth an AsyncValue in the UI.
+final appVersionProvider = Provider<String>((ref) => 'unknown');
+
+final updateCheckerProvider = Provider<UpdateChecker>(
+  (ref) => UpdateChecker(),
+);
+
+/// Checks for a newer release at startup, if the user asked for that.
+///
+/// Only writes down what it found; nothing pops up. The About screen and the
+/// settings row read the remembered version, so a badge costs no network call.
+Future<void> checkForUpdatesAtStartup(WidgetRef ref) async {
+  final settings = ref.read(settingsProvider);
+  if (!settings.checkForUpdates) return;
+  final status = await ref
+      .read(updateCheckerProvider)
+      .check(currentVersion: ref.read(appVersionProvider));
+  final latest = status.latest;
+  if (latest != null) settings.lastKnownRelease = latest.version;
+}
+
+final backupServiceProvider = Provider<BackupService>(
+  (ref) => BackupService(
+    ref.watch(databaseProvider),
+    ref.read(settingsProvider),
+  ),
+);
 
 // ------------------------------------------------------- desktop integration
 

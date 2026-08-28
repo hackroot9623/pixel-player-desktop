@@ -230,6 +230,11 @@ class EqualizerState {
 
   String encode() => jsonEncode(toJson());
 
+  /// Reads the map [toJson] produces, with the same tolerance as [decode]:
+  /// anything unreadable becomes the default rather than throwing.
+  static EqualizerState fromJson(Map<String, Object?> json) =>
+      decode(jsonEncode(json));
+
   /// Reads back [encode]. Anything unreadable becomes the default, because a
   /// corrupt setting must not stop the player from starting.
   static EqualizerState decode(String? raw) {
