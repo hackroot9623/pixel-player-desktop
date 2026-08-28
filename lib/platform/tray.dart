@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 
@@ -185,8 +186,10 @@ class TrayController with TrayListener, WindowListener {
       hasQueue: _player.hasQueue,
     );
 
+    // The menu goes first, and on its own: it is the entire point of the icon.
+    // Anything after it that fails must not be able to take it down — which is
+    // exactly what used to happen, see the tooltip below.
     try {
-      await trayManager.setToolTip(label ?? 'PixelPlayer');
       await trayManager.setContextMenu(
         Menu(
           items: [
@@ -202,8 +205,22 @@ class TrayController with TrayListener, WindowListener {
           ],
         ),
       );
+    } catch (error) {
+      // Reported rather than swallowed: a tray with no menu is invisible as a
+      // failure, and this one hid behind a silent catch for a whole release.
+      debugPrint('Tray menu could not be set: $error');
+    }
+
+    // Tooltips are a separate, optional nicety. tray_manager has no Linux
+    // implementation of setToolTip, so this throws MissingPluginException there
+    // — and when it shared a try block with the menu, the menu never got set at
+    // all: the icon appeared with nothing behind it.
+    try {
+      await trayManager.setToolTip(label ?? 'PixelPlayer');
+    } on MissingPluginException {
+      // Expected on Linux; an appindicator has no tooltip.
     } catch (_) {
-      // A tray that went away mid-session must not take playback with it.
+      // Any other platform grumble is not worth a word to the user.
     }
   }
 

@@ -329,9 +329,12 @@ class Settings extends ChangeNotifier {
   bool get trackNotifications => _prefs.getBool('track_notifications') ?? false;
   set trackNotifications(bool value) => _set('track_notifications', value);
 
-  /// Whether to sit in the system tray, and keep running when the window is
-  /// closed.
-  bool get showTrayIcon => _prefs.getBool('tray_icon') ?? false;
+  /// Whether to sit in the system tray.
+  ///
+  /// On by default: a music player is the archetypal tray application, and the
+  /// menu is where the transport controls are expected to be. Desktops with no
+  /// tray host simply show nothing, which costs the user nothing.
+  bool get showTrayIcon => _prefs.getBool('tray_icon') ?? true;
   set showTrayIcon(bool value) => _set('tray_icon', value);
 
   /// Closing the window hides it instead of quitting. Only meaningful with a

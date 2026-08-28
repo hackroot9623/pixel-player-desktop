@@ -195,13 +195,14 @@ left behind.
 
 ## Tray and notifications
 
-Both off by default, under Settings → Desktop:
+Under Settings → Desktop:
 
 - **Notify on track change** — a popup per track, with Previous/Pause/Next buttons where
   your notification server can draw them. Off by default because your desktop already shows
   what is playing.
-- **System tray icon** — transport controls from the tray. Some desktops have no tray (GNOME
-  without an extension), in which case nothing appears.
+- **System tray icon** — on by default. Right-click (or click, depending on your desktop) for
+  the current track, Play/Pause, Previous, Next, Show PixelPlayer and Quit. Some desktops have
+  no tray at all — GNOME needs the AppIndicator extension — in which case nothing appears.
 - **Close to tray** — closing the window keeps the music going. Needs the tray icon, or
   there would be no way back to the window.
 

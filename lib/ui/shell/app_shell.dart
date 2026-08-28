@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/providers.dart';
 import '../components/mini_player.dart';
 import 'compact_player.dart';
+import 'typing_barrier.dart';
 import '../navigation.dart';
 import '../screens/home_screen.dart';
 import '../screens/library_screen.dart';
@@ -85,9 +86,16 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final radius = settings.navBarCornerRadius;
+    final bindings = _shortcuts();
     return CallbackShortcuts(
-      bindings: _shortcuts(),
-      child: Focus(autofocus: true, child: _body(radius)),
+      bindings: bindings,
+      // Below the shortcuts, so it can stop a key before it gets there: these
+      // are single-key bindings, and a text field does not mark its characters
+      // as handled.
+      child: TypingShortcutBarrier(
+        activators: bindings.keys,
+        child: Focus(autofocus: true, child: _body(radius)),
+      ),
     );
   }
 
