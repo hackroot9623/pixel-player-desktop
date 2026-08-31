@@ -4,16 +4,29 @@ import 'dart:io';
 
 // Is there a newer build?
 //
-// The releases page is the only thing that knows, so this asks GitHub and stops
-// there: no download, no self-replacing binary. The app is installed from a
-// tarball or a package, and a program that overwrites itself behind the user's
-// back is a worse problem than a stale version.
+// The releases page is the only thing that knows, so this asks GitHub. Nothing
+// is downloaded by this file: it reports what is out there, and the assets on
+// the release are what `update_installer.dart` then fetches — but only after the
+// user presses the button. An app that replaces its own binary unasked is a
+// worse problem than a stale version.
 //
 // Off by default. Reaching out to a server on every launch is not something to
 // do to someone without asking, so there is a button, and automatic checks are a
 // setting.
 
 const updateRepository = 'hackroot9623/pixel-player-desktop';
+
+/// One downloadable file attached to a release.
+class ReleaseAsset {
+  const ReleaseAsset({required this.name, required this.url, this.size = 0});
+
+  final String name;
+  final String url;
+
+  /// Bytes, as GitHub reports them. Used to draw a progress bar and to notice a
+  /// truncated download.
+  final int size;
+}
 
 /// One release from the releases page.
 class Release {
@@ -24,6 +37,7 @@ class Release {
     this.notes = '',
     this.publishedAt,
     this.isPrerelease = false,
+    this.assets = const [],
   });
 
   final String tag;
@@ -32,6 +46,7 @@ class Release {
   final String notes;
   final DateTime? publishedAt;
   final bool isPrerelease;
+  final List<ReleaseAsset> assets;
 
   /// The version out of a `v1.2.3` style tag.
   String get version => tag.startsWith('v') ? tag.substring(1) : tag;
@@ -170,6 +185,64 @@ class UpdateChecker {
   }
 }
 
+/// The bundle for this platform, or null when the release has none.
+///
+/// The names are the ones the build workflow publishes. Matched loosely on the
+/// platform word rather than the whole filename, so renaming the artifact to add
+/// a version does not break the updater.
+ReleaseAsset? assetForPlatform(Release release, String operatingSystem) {
+  final want = switch (operatingSystem) {
+    'linux' => ('linux', '.tar.gz'),
+    'windows' => ('windows', '.zip'),
+    'macos' => ('macos', '.zip'),
+    _ => null,
+  };
+  if (want == null) return null;
+  for (final asset in release.assets) {
+    final name = asset.name.toLowerCase();
+    if (name.contains(want.$1) && name.endsWith(want.$2)) return asset;
+  }
+  return null;
+}
+
+/// Whether a download URL is one worth trusting with a binary.
+///
+/// The URL arrives over the network, so it is not allowed to point anywhere it
+/// likes: GitHub serves release assets from github.com and redirects to its own
+/// object storage, and nothing else is accepted. Without this a compromised or
+/// spoofed API answer could hand the installer any host's executable.
+bool isTrustedAssetUrl(String url) {
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.scheme != 'https') return false;
+  const hosts = {
+    'github.com',
+    'api.github.com',
+    'objects.githubusercontent.com',
+    'release-assets.githubusercontent.com',
+  };
+  final host = uri.host.toLowerCase();
+  return hosts.contains(host);
+}
+
+/// Reads the assets of one release. Anything without a name and URL is skipped.
+List<ReleaseAsset> parseAssets(Object? raw) {
+  if (raw is! List) return const [];
+  return [
+    for (final entry in raw)
+      if (entry is Map)
+        if (entry['name'] case final String name)
+          if (entry['browser_download_url'] case final String url)
+            ReleaseAsset(
+              name: name,
+              url: url,
+              size: switch (entry['size']) {
+                final int size => size,
+                _ => 0,
+              },
+            ),
+  ];
+}
+
 /// Reads the releases list. Anything unreadable is skipped rather than fatal.
 List<Release> parseReleases(String body) {
   final Object? decoded;
@@ -191,6 +264,7 @@ List<Release> parseReleases(String body) {
             notes: '${entry['body'] ?? ''}',
             publishedAt: DateTime.tryParse('${entry['published_at'] ?? ''}'),
             isPrerelease: entry['prerelease'] == true,
+            assets: parseAssets(entry['assets']),
           ),
   ];
 }

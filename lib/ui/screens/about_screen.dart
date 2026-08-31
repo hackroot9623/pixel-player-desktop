@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/remote/drive/google_oauth.dart' show SystemBrowserLauncher;
 import '../../data/update/update_check.dart';
+import '../../data/update/update_installer.dart';
 import '../../state/providers.dart';
 import '../navigation.dart';
 
 /// Version, licences, and whether there is a newer build.
 ///
-/// The update check goes no further than telling you and offering the link: this
-/// app is installed from a tarball or a package, and a program that replaces its
-/// own binary is a worse problem than a stale version.
+/// Nothing is downloaded until the button is pressed. When this copy was
+/// installed by install.sh the update is applied in place; anything else — a
+/// package, a build directory, Windows, macOS — says why not and offers the
+/// release page instead.
 class AboutScreen extends ConsumerStatefulWidget {
   const AboutScreen({super.key});
 
@@ -21,6 +24,22 @@ class AboutScreen extends ConsumerStatefulWidget {
 class _AboutScreenState extends ConsumerState<AboutScreen> {
   UpdateStatus? _status;
   bool _checking = false;
+
+  /// Created here rather than in a provider: it belongs to this screen, and its
+  /// progress is nobody else's business.
+  late final UpdateInstaller _installer = UpdateInstaller()
+    ..addListener(_onInstallerChanged);
+
+  void _onInstallerChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _installer.removeListener(_onInstallerChanged);
+    _installer.dispose();
+    super.dispose();
+  }
 
   /// Taps on the version. The old trick, and the same count as the phone.
   int _taps = 0;
@@ -133,8 +152,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                     null => 'Asks GitHub for the newest release.',
                     final s when s.error != null => s.error!,
                     final s when s.hasUpdate =>
-                      'You have $version. Nothing is downloaded '
-                          'automatically — the link opens the releases page.',
+                      'You have $version. Nothing has been downloaded yet.',
                     // The releases page currently carries only the rolling
                     // build from CI, which is not a version to compare against.
                     final s when s.noReleases =>
@@ -153,21 +171,10 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
                         ),
                 ),
                 if (status?.hasUpdate == true)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                    child: Row(
-                      children: [
-                        FilledButton.tonalIcon(
-                          onPressed: () => _copy(
-                            context,
-                            status!.latest!.url,
-                            'Release link copied',
-                          ),
-                          icon: const Icon(Icons.link_rounded, size: 18),
-                          label: const Text('Copy the release link'),
-                        ),
-                      ],
-                    ),
+                  _UpdateActions(
+                    release: status!.latest!,
+                    installer: _installer,
+                    onInstall: () => _installer.install(status.latest!),
                   ),
                 SwitchListTile(
                   secondary: const Icon(Icons.update_rounded),
@@ -236,6 +243,118 @@ class _AboutScreenState extends ConsumerState<AboutScreen> {
         ],
       ),
     );
+  }
+}
+
+/// The buttons under an available update.
+class _UpdateActions extends StatelessWidget {
+  const _UpdateActions({
+    required this.release,
+    required this.installer,
+    required this.onInstall,
+  });
+
+  final Release release;
+  final UpdateInstaller installer;
+  final VoidCallback onInstall;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final refusal = installer.refusal;
+    final size = assetForPlatform(release, installer.operatingSystem)?.size ?? 0;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (installer.busy) ...[
+            LinearProgressIndicator(value: installer.progress),
+            const SizedBox(height: 8),
+            Text(
+              switch (installer.stage) {
+                InstallStage.downloading =>
+                  'Downloading ${_megabytes(installer.received)}'
+                      '${size > 0 ? ' of ${_megabytes(size)}' : ''}…',
+                InstallStage.extracting => 'Unpacking…',
+                _ => 'Putting it in place…',
+              },
+              style: theme.textTheme.bodySmall,
+            ),
+          ] else if (installer.finished) ...[
+            Text(
+              'Version ${release.version} is installed. Restart to use it.',
+              style: theme.textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 8),
+            FilledButton.icon(
+              onPressed: installer.restart,
+              icon: const Icon(Icons.restart_alt_rounded, size: 18),
+              label: const Text('Restart now'),
+            ),
+          ] else ...[
+            if (installer.error case final failure?) ...[
+              Text(
+                failure,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ] else if (refusal != null) ...[
+              Text(
+                refusal,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (refusal == null)
+                  FilledButton.icon(
+                    onPressed: onInstall,
+                    icon: const Icon(Icons.download_rounded, size: 18),
+                    label: Text(
+                      size > 0
+                          ? 'Download and install (${_megabytes(size)})'
+                          : 'Download and install',
+                    ),
+                  ),
+                FilledButton.tonalIcon(
+                  onPressed: () => _open(context, release.url),
+                  icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                  label: const Text('Open the release page'),
+                ),
+                TextButton.icon(
+                  onPressed: () =>
+                      _copy(context, release.url, 'Release link copied'),
+                  icon: const Icon(Icons.link_rounded, size: 18),
+                  label: const Text('Copy the link'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _megabytes(int bytes) =>
+    '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+
+Future<void> _open(BuildContext context, String url) async {
+  try {
+    await const SystemBrowserLauncher().open(url);
+  } catch (_) {
+    if (context.mounted) {
+      await _copy(context, url, 'Could not open a browser — link copied');
+    }
   }
 }
 

@@ -236,9 +236,21 @@ and restoring the same file twice will not double your play counts.
 ## About, updates and diagnostics
 
 Settings → About has the version, the licence of every package the app is built from, and a
-button to ask GitHub whether there is a newer release. It only tells you and offers the link:
-nothing is downloaded and the binary never replaces itself. Startup checks are off by
-default — that is the only request this app makes to a server you did not configure.
+button to ask GitHub whether there is a newer release. Startup checks are off by default —
+that is the only request this app makes to a server you did not configure.
+
+When there is one, the update can be applied from inside the app: **Download and install**
+fetches the release bundle for this platform, unpacks it beside the current install and
+renames it into place, then offers to restart. This only happens when this copy was installed
+by `install.sh` — a user-owned bundle in `~/.local/lib/com.theveloper.pixelplay_desktop`.
+A distribution package, `/usr`, a build directory, Windows and macOS are all refused with the
+reason, and the release page is offered instead. Nothing downloads until you press the
+button, and only GitHub's own hosts are accepted as a download source.
+
+The swap is safe because it never writes over the running program: the new bundle is
+extracted next to the old one, on the same filesystem, and only a rename puts it in place —
+so a failed or half-finished download cannot leave a broken install. Renaming and deleting a
+running binary is harmless on Unix; overwriting it in place is not.
 
 Diagnostics lists what this machine has and what the app found: libmpv, yt-dlp, TDLib,
 whether MPRIS is actually on the session bus, your paths and library counts. Copy it whole

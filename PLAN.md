@@ -321,9 +321,8 @@ Nothing secret is written, and that is enforced in one place rather than at each
 `isSecretPreference` filters keys, and remote accounts travel as server and username with
 the password stripped, so a restore recreates the server and asks for the password again.
 
-**Update check.** Asks GitHub and stops there — no download, no self-replacing binary; the
-app is installed from a tarball or a package. Off by default, since it is the only thing in
-the app that contacts a server the user did not configure. The awkward part is this repo's
+**Update check.** Asks GitHub for the release list. Off by default, since it is the only
+thing in the app that contacts a server the user did not configure. The awkward part is this repo's
 own release shape: CI publishes a rolling `latest` prerelease on every push, so
 `/releases/latest` is the wrong endpoint (it skips prereleases, and the rolling tag is not a
 version). The check reads the list and takes the newest tag that parses as a version.
@@ -332,6 +331,33 @@ Run live against the real repository, which caught a defect no unit test would h
 no `v*` tag yet, so `latest` comes back null and the screen claimed "you are up to date" —
 asserting something it does not know. There is now a distinct `noReleases` state saying the
 releases page has only the rolling build.
+
+**Installing the update in place.** The check now has a **Download and install** button
+behind it, and the whole design is about what it refuses to do. It only updates an install
+made by `packaging/install.sh` — a user-owned bundle at
+`$PREFIX/lib/com.theveloper.pixelplay_desktop`, detected from `Platform.resolvedExecutable`.
+A distribution package, `/usr`, a directory that is not writable, a `build/` tree, Windows and
+macOS each get a sentence saying why not, plus the release page. Two other refusals: the
+download URL must be on GitHub's own hosts (it arrives over the network, so it is not allowed
+to point anywhere it likes), and the first bytes must be gzip's magic number, which is what an
+expired link returning an HTML page fails on.
+
+The swap never writes over the running program: the bundle is extracted to `<libdir>.new` on
+the same filesystem, the old directory is renamed to `.old`, the new one is renamed into
+place, and only then is `.old` deleted. Renaming or deleting a running binary is harmless on
+Unix — the inode survives until the process exits — while `cp` over it is `ETXTBSY` at best
+and a corrupted running process at worst. If the second rename fails the old directory is put
+back, so there is no state where nothing is installed. The restart is a detached
+`sh -c 'sleep 1; exec …'` before `exit(0)`, because the single-instance lock is held by this
+process: a new one started immediately would find port 47821 taken, hand over, and quit.
+
+The download is behind an `AssetDownloader` seam, so the swap is tested for real — a tarball
+built with `tar`, a fake layout in a temp directory, and assertions that a bundle without the
+binary in it leaves the working install untouched. Live against the real 16 MB rolling asset
+the download turned out to run at about 66 KB/s over this machine's VPN route, which is what
+prompted an *idle* timeout on the body stream rather than a total one: a slow link is fine, a
+link that stops delivering is not, and before that a stall left the progress bar frozen with
+nothing reported.
 
 **About and licences.** Version, `showLicensePage` for every package, a link to the source,
 and the way into diagnostics. Tapping the version seven times opens the easter egg, same
