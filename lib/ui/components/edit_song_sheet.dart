@@ -11,6 +11,7 @@ import '../../state/providers.dart';
 import '../theme/shapes.dart';
 import 'album_art.dart';
 import 'common.dart';
+import 'metadata_search_dialog.dart';
 
 /// Port of `presentation/components/EditSongSheet`.
 Future<void> showEditSongSheet(BuildContext context, Song song) =>
@@ -127,6 +128,45 @@ class _EditSongDialogState extends ConsumerState<EditSongDialog> {
     });
   }
 
+  /// Fills the form from a MusicBrainz match, cover included.
+  ///
+  /// Only the form: the write still goes through Save, so a wrong pick is undone
+  /// by pressing Cancel. Offered for a single song only — in a bulk edit the
+  /// title and track number belong to each file, and one song's match must not
+  /// be stamped across a selection.
+  Future<void> _fetchMetadata() async {
+    final choice = await showMetadataSearch(
+      context,
+      lookup: ref.read(metadataLookupProvider),
+      title: _title.text,
+      artist: _artist.text,
+      album: _album.text,
+    );
+    if (choice == null || !mounted) return;
+
+    final match = choice.match;
+    setState(() {
+      _title.text = match.title;
+      _artist.text = match.artist;
+      if (match.album.isNotEmpty) _album.text = match.album;
+      if (match.year != null) _year.text = '${match.year}';
+      if (match.trackNumber != null) _track.text = '${match.trackNumber}';
+      if (match.discNumber != null) _disc.text = '${match.discNumber}';
+      if (choice.artwork != null) {
+        _newArtwork = choice.artwork;
+        _removeArtwork = false;
+      }
+    });
+
+    if (choice.artwork == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Tags filled in. No cover was found for that release.'),
+        ),
+      );
+    }
+  }
+
   Future<void> _save() async {
     final edit = _buildEdit();
     if (edit.isEmpty) {
@@ -181,6 +221,15 @@ class _EditSongDialogState extends ConsumerState<EditSongDialog> {
                             'skipped.',
                 ),
               if (!_isBulk) ...[
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.tonalIcon(
+                    onPressed: _saving ? null : _fetchMetadata,
+                    icon: const Icon(Icons.travel_explore_rounded, size: 18),
+                    label: const Text('Find metadata online'),
+                  ),
+                ),
+                const SizedBox(height: 12),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [

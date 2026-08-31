@@ -209,6 +209,16 @@ class SettingsScreen extends ConsumerWidget {
                   onTap: () => openDownloads(context),
                 ),
                 ListTile(
+                  leading: const Icon(Icons.image_search_rounded),
+                  title: const Text('Missing covers'),
+                  subtitle: const Text(
+                    'Find the album art your library has none of, review it, '
+                    'then write it into the files',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded),
+                  onTap: () => openCoverArt(context),
+                ),
+                ListTile(
                   leading: const Icon(Icons.backup_outlined),
                   title: const Text('Backup'),
                   subtitle: const Text(

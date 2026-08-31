@@ -17,6 +17,7 @@ import 'screens/backup_screen.dart';
 import 'screens/brick_breaker_screen.dart';
 import 'screens/cast_screen.dart';
 import 'screens/diagnostics_screen.dart';
+import 'screens/cover_art_screen.dart';
 import 'screens/download_screen.dart';
 import 'screens/drive_setup_screen.dart';
 import 'screens/equalizer_screen.dart';
@@ -83,6 +84,9 @@ void openBackup(BuildContext context) => _push(context, const BackupScreen());
 
 void openDownloads(BuildContext context) =>
     _push(context, const DownloadScreen());
+
+void openCoverArt(BuildContext context) =>
+    _push(context, const CoverArtScreen());
 
 void openAbout(BuildContext context) => _push(context, const AboutScreen());
 

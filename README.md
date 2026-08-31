@@ -233,6 +233,35 @@ restored on another machine still finds most of your library even if the music l
 somewhere else. Anything it cannot find is counted and reported rather than dropped quietly,
 and restoring the same file twice will not double your play counts.
 
+## Finding metadata and covers
+
+Two places, one source of truth.
+
+**One song.** The tag editor has **Find metadata online**: it searches MusicBrainz with the
+title, artist and album already in the file, lists what matched with the year, the album, the
+track number and whether the release is a live album or a compilation, and filling the form is
+all that happens when you pick one. The cover comes with it — from the Cover Art Archive, or
+from Deezer when the archive has none. Nothing touches the file until you press Save, which is
+the same verified write the editor has always used: written to a copy, re-read to prove it
+still parses, and only then swapped in.
+
+**A whole library.** Settings → **Missing covers** lists every album with no cover art, biggest
+first, and works an album at a time rather than a song at a time — one lookup covers all its
+tracks. **Find covers** downloads and shows them as thumbnails; **Write** puts them into the
+files, and only the covers: no album, artist or year is rewritten behind your back. Anything
+not found, or in a format tags cannot be written to, says so per album.
+
+MusicBrainz allows one request a second and this respects it, so a library with 300 coverless
+albums takes about five minutes. It also answers 503 when its own server is busy — the app
+retries with a growing pause and then tells you to try again rather than blaming your
+connection.
+
+Two honest limits. Without an album tag, searching a famous song returns a great many live and
+compilation appearances, all of which MusicBrainz scores 100; live albums, compilations,
+singles and unofficial releases are demoted in the list, but typing the album is what makes a
+search precise. And a track number comes from the release you picked — a reissue that splits an
+album over two discs numbers its tracks differently from the original.
+
 ## About, updates and diagnostics
 
 Settings → About has the version, the licence of every package the app is built from, and a

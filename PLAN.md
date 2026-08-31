@@ -359,6 +359,44 @@ prompted an *idle* timeout on the body stream rather than a total one: a slow li
 link that stops delivering is not, and before that a stall left the progress bar frozen with
 nothing reported.
 
+**Metadata and cover lookup.** MusicBrainz for the words, the Cover Art Archive for the
+picture, Deezer when the archive has none — all keyless, which is the point: a tagger that
+stops working when a key expires is worse than no tagger. Two entry points share one client
+(`metadataLookupProvider`), because the one-request-a-second limit is measured per client.
+
+Per song, in the tag editor: search, pick, and the form is filled — including the cover. The
+write is still the existing verified path behind Save, so a wrong pick costs a glance rather
+than a rewritten file. Offered for a single song only: in a bulk edit the title and track
+number belong to each file.
+
+Per library, in Settings → Missing covers: albums rather than songs, since one lookup covers
+every track and the rate limit makes that the difference between five minutes and an hour.
+Find downloads and shows thumbnails, Write applies only `TagEdit(artwork:)` — quietly
+rewriting an album or a year nobody asked about is how a batch tool loses trust. Failures are
+per album, and a file in a format with no tag writer is counted rather than silently skipped.
+
+Live verification against the real APIs earned its place four times over:
+
+* A recording search returns **one release per recording**, and MusicBrainz holds a separate
+  recording for every live and compilation appearance — asking for ten results returned ten
+  live bootlegs and never the studio album. The limit is now 25, and live, compilation, single
+  and unofficial releases are demoted in the ranking (MusicBrainz's own score answers "does
+  this text match", not "is this the release the file came from"; "Dissident #2" outscored
+  "Ten" for Pearl Jam's "Black", both at 100).
+* Track numbers arrive as a **string** (`"16"`, and `"A1"` on vinyl) with no `position` field
+  and a 0-based `track-offset`. All three are read, in that order.
+* MusicBrainz answers **503** freely — for rate limiting and for "web server is currently
+  busy" alike. The first version reported that as an unreachable server; there are now three
+  attempts with a growing pause and a message that says to wait.
+* The Cover Art Archive serves a **307 to its object storage** and an HTML page for a miss, so
+  the bytes are checked against the image magic numbers before they are ever written into a
+  tag, and Deezer is asked when there is nothing. Verified end to end: 67,010 bytes of JPEG for
+  Ten, 163,756 for a Deezer fallback.
+
+Known limits, both recorded rather than hidden: without an album tag a famous song returns a
+flood of live appearances, and a track number is only as right as the release picked — a
+two-disc reissue numbers differently from the original.
+
 **About and licences.** Version, `showLicensePage` for every package, a link to the source,
 and the way into diagnostics. Tapping the version seven times opens the easter egg, same
 count as the phone.

@@ -10,6 +10,8 @@ import '../data/artists/artist_image_repository.dart';
 import '../data/backup/backup_service.dart';
 import '../data/db/database.dart';
 import '../data/download/download_controller.dart';
+import '../data/metadata/cover_fixer.dart';
+import '../data/metadata/metadata_lookup.dart';
 import '../data/update/update_check.dart';
 import '../data/lyrics/lrclib_client.dart';
 import '../data/lyrics/lyrics_repository.dart';
@@ -720,6 +722,31 @@ final downloadControllerProvider = ChangeNotifierProvider<DownloadController>(
     onFinished: (_) => ref.read(libraryProvider.notifier).rescan(),
   ),
 );
+
+// ----------------------------------------------------------------- metadata
+
+/// MusicBrainz, the Cover Art Archive and Deezer.
+///
+/// One per app: it holds an HttpClient, and the MusicBrainz rate limit is
+/// measured per client — two of them would sail past one request a second.
+final metadataLookupProvider = Provider<MetadataLookup>((ref) {
+  final lookup = MetadataLookup();
+  ref.onDispose(lookup.dispose);
+  return lookup;
+});
+
+/// Finds the covers the library is missing.
+///
+/// The writer is the same verified tag path the editor uses, and the reload is
+/// what makes the covers appear without the user going to press scan.
+final coverFixerProvider = ChangeNotifierProvider<CoverFixer>((ref) {
+  final editor = ref.read(tagEditorProvider);
+  return CoverFixer(
+    lookup: ref.read(metadataLookupProvider),
+    writer: editor.apply,
+    onFinished: () async => ref.read(libraryProvider.notifier).reload(),
+  );
+});
 
 // ------------------------------------------------------------------- backup
 
