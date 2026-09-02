@@ -76,6 +76,16 @@ void main() {
       expect(line[line.indexOf('--cookie-file') + 1], '/home/me/cookies.txt');
     });
 
+    test('both search providers are named, in order', () {
+      // spotdl defaults to youtube-music alone, and that provider is currently
+      // broken — it searches with a German client and gets nothing back. The
+      // fallback chain is what keeps a run alive.
+      final line = args();
+      final at = line.indexOf('--audio');
+      expect(at, isNot(-1));
+      expect(line.sublist(at + 1, at + 3), ['youtube-music', 'youtube']);
+    });
+
     test('errors are asked for, so failures carry their reason', () {
       expect(args(), contains('--print-errors'));
     });
@@ -149,6 +159,29 @@ void main() {
         'AudioProviderError: YT-DLP download error (spotdl gave no detail)',
       );
       expect(event.error, isNot(endsWith('-')));
+    });
+
+    test('a search that found nothing usable is a failure, not a log line', () {
+      // Verbatim from a real run. Left as a log line it produced "0 downloaded"
+      // with nothing failed and no reason anywhere on screen.
+      final event = parseSpotdlLine(
+        'YouTube Music returned no usable results for harry styles - sign of '
+        'the times after 3 attempts',
+      );
+      expect(event, isA<SpotdlFailed>());
+      expect(
+        (event as SpotdlFailed).track,
+        'harry styles - sign of the times',
+      );
+      expect(event.error, contains('nothing usable'));
+    });
+
+    test('the per-attempt chatter is counted the same way', () {
+      final event = parseSpotdlLine(
+        'YouTube Music returned no usable results for x on attempt 1/3, '
+        'retrying with a new client',
+      );
+      expect((event as SpotdlFailed).track, 'x');
     });
 
     test('anything unrecognised is kept as a log line', () {

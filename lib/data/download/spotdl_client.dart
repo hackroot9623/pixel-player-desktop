@@ -83,6 +83,17 @@ enum DownloadFormat {
 /// v4's CLI; [SpotdlClient.version] is what confirms the binary is there, and any
 /// disagreement about a flag surfaces as spotdl's own error text in the log
 /// rather than as a silent failure.
+/// The search providers, in the order spotdl should try them.
+///
+/// Not spotdl's default, which is `youtube-music` alone — and that provider is
+/// currently broken: it builds its client as `YTMusic(language="de")`, and with
+/// ytmusicapi 1.12 a German-language search parses to nothing. Measured on the
+/// same query: 0 results in German, 60 in English, so every track failed with
+/// "returned no usable results after 3 attempts". `--audio` takes a fallback
+/// chain, so naming both means a dead first provider costs a retry rather than
+/// the whole run.
+const defaultAudioProviders = ['youtube-music', 'youtube'];
+
 List<String> spotdlArguments({
   required String url,
   required String outputDirectory,
@@ -91,6 +102,7 @@ List<String> spotdlArguments({
   String? cookiesFile,
   int threads = 4,
   bool overwriteExisting = false,
+  List<String> audioProviders = defaultAudioProviders,
 }) => [
   'download',
   url,
@@ -103,6 +115,7 @@ List<String> spotdlArguments({
   bitrate,
   '--threads',
   '$threads',
+  if (audioProviders.isNotEmpty) ...['--audio', ...audioProviders],
   // Skip rather than redownload: the usual reason to run this twice is to pick
   // up what a playlist gained since last time.
   '--overwrite',
@@ -143,6 +156,10 @@ final _total = RegExp(r'Found (\d+) songs?(?: in (.+?))?(?:\s*\(.*\))?$');
 final _downloaded = RegExp(r'^Downloaded\s+"(.+?)"');
 final _skipped = RegExp(r'^Skipping\s+(.+?)\s*\((.+?)\)\s*$');
 final _lookupFailed = RegExp(r'^LookupError:\s*(?:No results found for song:\s*)?(.+)$');
+final _searchFailed = RegExp(
+  r'^(?:YouTube Music|YouTube|SoundCloud|Bandcamp|Piped) returned no usable '
+  r'results for (.+?)(?:\s+(?:after|on attempt).*)?$',
+);
 final _providerFailed = RegExp(r'^(\w*(?:Error|Exception)):\s*(.+)$');
 
 /// Reads one line of spotdl output.
@@ -171,6 +188,15 @@ SpotdlEvent parseSpotdlLine(String raw) {
   }
   if (_lookupFailed.firstMatch(line) case final match?) {
     return SpotdlFailed(match.group(1)!.trim(), 'no match found on YouTube');
+  }
+  // Counted rather than logged: a whole playlist failing this way showed
+  // "0 downloaded" with nothing failed and no reason on screen, which is exactly
+  // what a real run looked like.
+  if (_searchFailed.firstMatch(line) case final match?) {
+    return SpotdlFailed(
+      match.group(1)!.trim(),
+      'the search returned nothing usable',
+    );
   }
   if (_providerFailed.firstMatch(line) case final match?) {
     // spotdl prints "YT-DLP download error -" and stops, having never captured
@@ -296,6 +322,7 @@ class SpotdlClient {
     String? cookiesFile,
     int threads = 4,
     bool overwriteExisting = false,
+    List<String> audioProviders = defaultAudioProviders,
   }) async* {
     final process = await _launch(
       executable,
@@ -307,6 +334,7 @@ class SpotdlClient {
         cookiesFile: cookiesFile,
         threads: threads,
         overwriteExisting: overwriteExisting,
+        audioProviders: audioProviders,
       ),
     );
     _current = process;

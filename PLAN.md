@@ -442,6 +442,17 @@ Two things worth recording:
   offers is in spotdl's list. (They were written from the documented CLI and unexercised
   until spotdl was installed; the AUR build fails on a dependency whose `check()` runs
   network tests, so `pipx install spotdl` is the route that works.)
+- **spotdl's default search provider is broken**, and only a real run showed it: every track
+  of a 726-song playlist came back "YouTube Music returned no usable results after 3
+  attempts". The cause is in spotdl 4.5.2 itself — `YouTubeMusic._create_client()` builds
+  `YTMusic(language="de")`, and with ytmusicapi 1.12 a German-language search parses to
+  nothing. Measured directly on one query: **0 results in German, 60 in English**. So the
+  arguments now name a fallback chain, `--audio youtube-music youtube`, and that line is
+  tested. (The `youtube` provider searches through yt-dlp, so it needs the cookies file
+  below — the two failures compound, which is why the first run showed neither clearly.)
+- Those "no usable results" lines are now **counted as failures** rather than kept as log
+  lines. Left as logs they produced the worst screen in the feature's history: "0
+  downloaded", nothing failed, and no reason anywhere.
 - The **sign-in wall is the normal failure**, and spotdl reports it worst: yt-dlp answers
   "Sign in to confirm you're not a bot", spotdl relays that as `YT-DLP download error -`
   with nothing after the dash, and a first real run showed exactly that — 726 tracks found,

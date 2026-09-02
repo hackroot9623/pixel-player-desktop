@@ -303,6 +303,21 @@ pipx rather than a distribution package: spotdl pins loose Python dependencies a
 package currently fails to build at all, because a dependency runs its own network tests in
 `check()` and Musixmatch answers 401. A venv makes that someone else's problem.
 
+Two things about spotdl 4.5.2 are worth knowing, because both were found by running it
+rather than reading about it.
+
+Its default search provider is broken: `YouTubeMusic._create_client()` asks for a German
+YouTube Music client, and with ytmusicapi 1.12 a German search parses to nothing — 0 results
+where English gives 60. Every track fails with "returned no usable results after 3
+attempts". PixelPlayer works around it by asking for a fallback chain
+(`--audio youtube-music youtube`), so a dead provider costs a retry rather than the run. If
+you would rather fix it at the source, it is one word in spotdl's own file:
+
+```bash
+sudo sed -i 's/YTMusic(language="de")/YTMusic(language="en")/' \
+  /usr/lib/python3.14/site-packages/spotdl/providers/audio/ytmusic.py
+```
+
 **You will need a cookies file.** Searching YouTube works anonymously; fetching the audio
 does not — yt-dlp gets "Sign in to confirm you're not a bot", and spotdl relays it as
 `YT-DLP download error -` with no reason attached. The screen recognises that failure and
