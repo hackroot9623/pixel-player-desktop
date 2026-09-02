@@ -751,7 +751,68 @@ void main() {
         );
         await _settle(tester, frames: 3);
         expect(tester.takeException(), isNull, reason: 'portrait at $size');
+
+        // And with the lyrics shown instead of the artwork, which is the taller
+        // of the two states.
+        await tester.tap(find.byIcon(Icons.lyrics_outlined));
+        await _settle(tester, frames: 3);
+        expect(
+          tester.takeException(),
+          isNull,
+          reason: 'portrait lyrics at $size',
+        );
       }
+    });
+
+    testWidgets('the compact player seeks with the wavy slider', (tester) async {
+      // The straight Material slider it used to draw looked like a different
+      // app beside the full player.
+      const size = Size(520, 680);
+      resize(tester, size);
+      await tester.pumpWidget(
+        host(
+          Scaffold(
+            body: CompactPortraitPlayer(
+              song: db.allSongs().first,
+              presets: const SizedBox.shrink(),
+              available: size,
+            ),
+          ),
+        ),
+      );
+      await _settle(tester, frames: 3);
+
+      expect(find.byType(WavySlider), findsOneWidget);
+      expect(find.byType(Slider), findsNothing);
+    });
+
+    testWidgets('the compact player can show the lyrics in place of the art',
+        (tester) async {
+      const size = Size(520, 680);
+      resize(tester, size);
+      await tester.pumpWidget(
+        host(
+          Scaffold(
+            body: CompactPortraitPlayer(
+              song: db.allSongs().first,
+              presets: const SizedBox.shrink(),
+              available: size,
+            ),
+          ),
+        ),
+      );
+      await _settle(tester, frames: 3);
+      expect(find.byType(AlbumArt), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.lyrics_outlined));
+      await _settle(tester, frames: 3);
+      // The artwork gives up its space, and the transport stays put.
+      expect(find.byType(AlbumArt), findsNothing);
+      expect(find.byType(WavySlider), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.lyrics_rounded));
+      await _settle(tester, frames: 3);
+      expect(find.byType(AlbumArt), findsOneWidget);
     });
 
     testWidgets('nothing overflows at the shell minimum', (tester) async {
