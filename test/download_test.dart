@@ -139,6 +139,18 @@ void main() {
       expect(event.error, contains('Sign in to confirm'));
     });
 
+    test('an error with no detail says so instead of dangling a dash', () {
+      // Exactly what a real run produced: spotdl relays yt-dlp's failure as
+      // "YT-DLP download error -" without ever capturing the reason.
+      final event = parseSpotdlLine('AudioProviderError: YT-DLP download error -');
+      expect(event, isA<SpotdlFailed>());
+      expect(
+        (event as SpotdlFailed).error,
+        'AudioProviderError: YT-DLP download error (spotdl gave no detail)',
+      );
+      expect(event.error, isNot(endsWith('-')));
+    });
+
     test('anything unrecognised is kept as a log line', () {
       // spotdl's wording changes between versions; a parser that insisted on
       // knowing every line would break on the next upgrade.
@@ -149,6 +161,72 @@ void main() {
 
     test('blank lines are empty logs, not noise', () {
       expect((parseSpotdlLine('   ') as SpotdlLog).line, isEmpty);
+    });
+  });
+
+  group('recognising the YouTube sign-in wall', () {
+    test("yt-dlp's own wording is recognised", () {
+      // The real message, curly apostrophe and all, which is why the match is
+      // on "not a bot" rather than the whole phrase.
+      expect(
+        looksLikeBotWall(
+          'ERROR: [youtube] OzDB1Nu6hf4: Sign in to confirm you\u2019re not a '
+          'bot. Use --cookies-from-browser or --cookies for the authentication.',
+        ),
+        isTrue,
+      );
+    });
+
+    test("spotdl's detail-less relay is recognised too", () {
+      // spotdl swallows the reason, so this is all the app usually sees.
+      expect(
+        looksLikeBotWall('AudioProviderError: YT-DLP download error -'),
+        isTrue,
+      );
+    });
+
+    test('an ordinary failure is not mistaken for it', () {
+      for (final line in [
+        'LookupError: No results found for song: Obscure B-Side',
+        'Skipping A - Two (file already exists)',
+        'Downloaded "A - One": https://x',
+        'YouTube Music returned no usable results for daft punk',
+      ]) {
+        expect(looksLikeBotWall(line), isFalse, reason: line);
+      }
+    });
+
+    test('the controller raises it from a log line or a failure', () async {
+      var controller = DownloadController(
+        client: SpotdlClient(
+          launcher: fakeLauncher([
+            'Found 1 song in X (album)',
+            'AudioProviderError: YT-DLP download error -',
+          ]),
+        ),
+      );
+      await controller.start(
+        url: _link,
+        outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
+      );
+      expect(controller.needsCookies, isTrue);
+      controller.dispose();
+
+      // And a clean run must not claim it.
+      controller = DownloadController(
+        client: SpotdlClient(
+          launcher: fakeLauncher([
+            'Found 1 song in X (album)',
+            'Downloaded "A - One": https://x',
+          ]),
+        ),
+      );
+      await controller.start(
+        url: _link,
+        outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
+      );
+      expect(controller.needsCookies, isFalse);
+      controller.dispose();
     });
   });
 

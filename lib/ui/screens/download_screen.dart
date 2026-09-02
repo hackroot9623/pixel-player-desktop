@@ -309,7 +309,10 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               ),
 
             if (download.running || download.handled > 0)
-              _Progress(download: download),
+              _Progress(
+                download: download,
+                hasCookies: _cookies.text.trim().isNotEmpty,
+              ),
           ],
         ],
       ),
@@ -385,9 +388,12 @@ class _MissingSpotdl extends StatelessWidget {
 }
 
 class _Progress extends StatelessWidget {
-  const _Progress({required this.download});
+  const _Progress({required this.download, required this.hasCookies});
 
   final DownloadController download;
+
+  /// Only so the bot-wall notice can say "generate one" or "yours expired".
+  final bool hasCookies;
 
   @override
   Widget build(BuildContext context) {
@@ -428,6 +434,11 @@ class _Progress extends StatelessWidget {
                     ),
                 ],
               ),
+
+              if (download.needsCookies) ...[
+                const SizedBox(height: 12),
+                _BotWallNotice(hasCookies: hasCookies),
+              ],
 
               if (download.failed.isNotEmpty) ...[
                 const SizedBox(height: 12),
@@ -478,6 +489,116 @@ class _Progress extends StatelessWidget {
                 ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+
+/// What to do when YouTube refuses to serve the audio.
+///
+/// This is the one failure worth explaining rather than reporting: spotdl finds
+/// the playlist, finds the track, and then yt-dlp is told to sign in — and
+/// spotdl relays that as `YT-DLP download error -` with nothing after the dash.
+/// Verified against the real pair: yt-dlp answered "Sign in to confirm you're
+/// not a bot" for the very video that reached the app as an empty error.
+class _BotWallNotice extends StatelessWidget {
+  const _BotWallNotice({required this.hasCookies});
+
+  final bool hasCookies;
+
+  static const _command =
+      "yt-dlp --cookies-from-browser firefox --cookies ~/.config/pixelplay-cookies.txt "
+      "--skip-download 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'";
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.no_accounts_rounded,
+                  size: 18,
+                  color: theme.colorScheme.onErrorContainer,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    hasCookies
+                        ? 'YouTube rejected the cookies'
+                        : 'YouTube wants a signed-in session',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              hasCookies
+                  ? 'The cookies file is there but no longer works — they '
+                        'expire, and signing out of YouTube in the browser '
+                        'invalidates them. Generate a fresh one:'
+                  : 'Searching works without an account; fetching the audio '
+                        'does not. Generate a cookies file and put its path in '
+                        'the field above:',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SelectableText(
+                _command,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      const ClipboardData(text: _command),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Command copied')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 16),
+                  label: const Text('Copy the command'),
+                ),
+                Expanded(
+                  child: Text(
+                    'Swap firefox for chrome, brave or edge. Keep the file to '
+                    'yourself — it is your YouTube session.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );

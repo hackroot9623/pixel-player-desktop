@@ -436,10 +436,20 @@ mismatch visible instead of a silent stall.
 
 Two things worth recording:
 
-- spotdl is not installed on the development machine, so the flags follow spotdl v4's
-  documented CLI and have **not** been exercised against the real binary. The design
-  compensates: the version probe confirms it exists, and spotdl's own stderr is surfaced
-  verbatim, so a renamed flag shows up as a readable error rather than a hang.
+- The flags are **verified** against spotdl 4.5.2's own `--help`: `--output`, `--format`,
+  `--bitrate`, `--threads`, `--cookie-file`, `--overwrite {metadata,force,skip}` and
+  `--print-errors` all exist and are spelled as generated, and every format the picker
+  offers is in spotdl's list. (They were written from the documented CLI and unexercised
+  until spotdl was installed; the AUR build fails on a dependency whose `check()` runs
+  network tests, so `pipx install spotdl` is the route that works.)
+- The **sign-in wall is the normal failure**, and spotdl reports it worst: yt-dlp answers
+  "Sign in to confirm you're not a bot", spotdl relays that as `YT-DLP download error -`
+  with nothing after the dash, and a first real run showed exactly that — 726 tracks found,
+  0 downloaded, one unreadable error. So `looksLikeBotWall` matches both wordings, the
+  screen explains it with the `yt-dlp --cookies-from-browser` command to generate a cookies
+  file, and a reasonless error now says "(spotdl gave no detail)" rather than dangling a
+  dash. A test caught the first attempt at that: the dash is *inside* the detail, so
+  checking for an empty detail never fired.
 - A test caught a host-suffix bug in the link validator: `endsWith('spotify.com')` accepts
   `notspotify.com`. It now requires an exact match or a leading dot.
 

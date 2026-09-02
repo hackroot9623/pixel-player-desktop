@@ -299,6 +299,23 @@ PixelPlayer release.
 pipx install spotdl
 ```
 
+pipx rather than a distribution package: spotdl pins loose Python dependencies and the AUR
+package currently fails to build at all, because a dependency runs its own network tests in
+`check()` and Musixmatch answers 401. A venv makes that someone else's problem.
+
+**You will need a cookies file.** Searching YouTube works anonymously; fetching the audio
+does not — yt-dlp gets "Sign in to confirm you're not a bot", and spotdl relays it as
+`YT-DLP download error -` with no reason attached. The screen recognises that failure and
+shows the command to fix it:
+
+```bash
+yt-dlp --cookies-from-browser firefox --cookies ~/.config/pixelplay-cookies.txt \
+  --skip-download 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+```
+
+Put that path in the Cookies file field. It is your YouTube session in a text file — keep it
+to yourself, and expect to regenerate it when it expires.
+
 Be clear about what this is. **Nothing decrypts Spotify** — its audio is protected and never
 touched. The playlist's *metadata* is read from Spotify, each track is then found on
 **YouTube**, downloaded, and tagged with the Spotify details and cover art. So the tags are

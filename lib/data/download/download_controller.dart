@@ -23,6 +23,7 @@ class DownloadController extends ChangeNotifier {
 
   StreamSubscription<SpotdlEvent>? _subscription;
 
+  bool _botWall = false;
   bool _running = false;
   bool _cancelled = false;
   int _total = 0;
@@ -48,6 +49,12 @@ class DownloadController extends ChangeNotifier {
       List.unmodifiable(_skipped);
   List<({String track, String error})> get failed => List.unmodifiable(_failed);
   List<String> get log => List.unmodifiable(_log);
+
+  /// Whether the failures look like YouTube demanding a sign-in.
+  ///
+  /// The single most common way this feature fails, and the one spotdl reports
+  /// worst: search works anonymously, fetching the audio does not.
+  bool get needsCookies => _botWall;
 
   String? get version => _version;
   bool get available => _version != null && _version!.isNotEmpty;
@@ -113,6 +120,7 @@ class DownloadController extends ChangeNotifier {
     _skipped.clear();
     _failed.clear();
     _log.clear();
+    _botWall = false;
     notifyListeners();
 
     final events = _client.download(
@@ -160,8 +168,10 @@ class DownloadController extends ChangeNotifier {
         _skipped.add((track: track, reason: reason));
       case SpotdlFailed(:final track, :final error):
         _failed.add((track: track, error: error));
+        if (looksLikeBotWall(error)) _botWall = true;
       case SpotdlLog(:final line):
         if (line.isEmpty) return;
+        if (looksLikeBotWall(line)) _botWall = true;
         _log.add(line);
         // A long playlist produces thousands of lines and nobody reads past the
         // last few hundred.

@@ -115,6 +115,24 @@ List<String> spotdlArguments({
   ],
 ];
 
+/// Whether a failure is YouTube refusing to serve audio without a sign-in.
+///
+/// Two ways to tell. yt-dlp's own wording — which spotdl usually swallows — and
+/// spotdl's bare `YT-DLP download error -`, printed with nothing after the dash
+/// because it never captured the reason. Verified against the real pair: yt-dlp
+/// answered "Sign in to confirm you're not a bot" for the same video that
+/// reached the app as an empty error.
+bool looksLikeBotWall(String text) {
+  final line = text.toLowerCase();
+  // The apostrophe in yt-dlp's message is a typographic one, so it is not
+  // matched on.
+  if (line.contains('not a bot') || line.contains('sign in to confirm')) {
+    return true;
+  }
+  if (line.contains('--cookies') || line.contains('cookie-file')) return true;
+  return line.contains('yt-dlp download error');
+}
+
 /// Removes terminal colour codes, which spotdl emits when it thinks it has a
 /// terminal. Without this every pattern below has to match around escape
 /// sequences.
@@ -155,7 +173,21 @@ SpotdlEvent parseSpotdlLine(String raw) {
     return SpotdlFailed(match.group(1)!.trim(), 'no match found on YouTube');
   }
   if (_providerFailed.firstMatch(line) case final match?) {
-    return SpotdlFailed('', '${match.group(1)}: ${match.group(2)}');
+    // spotdl prints "YT-DLP download error -" and stops, having never captured
+    // yt-dlp's reason, so the dash is part of the detail rather than the detail
+    // being empty — which is what a test caught here. Trim the dangling
+    // punctuation and say the reason is missing.
+    final detail = match.group(2)!.trim().replaceAll(RegExp(r'[\s:-]+$'), '');
+    final reasonless = detail.isEmpty ||
+        RegExp(r'(error|exception)$', caseSensitive: false).hasMatch(detail);
+    return SpotdlFailed(
+      '',
+      [
+        match.group(1),
+        if (detail.isNotEmpty) ': $detail',
+        if (reasonless) ' (spotdl gave no detail)',
+      ].join(),
+    );
   }
   return SpotdlLog(line);
 }
