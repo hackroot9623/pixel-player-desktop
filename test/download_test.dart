@@ -326,6 +326,66 @@ void main() {
     });
   });
 
+  group('choosing where to look for the audio', () {
+    test('every provider names a flag spotdl accepts', () {
+      // Verified against spotdl 4.5.2's own --help.
+      expect(
+        AudioProvider.values.map((provider) => provider.flag).toSet(),
+        {'youtube', 'youtube-music', 'soundcloud', 'bandcamp', 'piped'},
+      );
+    });
+
+    test('the chain is passed in the order given', () {
+      final line = spotdlArguments(
+        url: _link,
+        outputDirectory: '/music',
+        audioProviders: const ['soundcloud', 'bandcamp'],
+      );
+      final at = line.indexOf('--audio');
+      expect(line.sublist(at + 1, at + 3), ['soundcloud', 'bandcamp']);
+    });
+
+    test('no provider at all is refused rather than left to spotdl', () async {
+      // spotdl would fall back to its own default, which is the broken one.
+      final recorded = <List<String>>[];
+      final controller = DownloadController(
+        client: SpotdlClient(
+          launcher: fakeLauncher(const [], recordArguments: recorded),
+        ),
+      );
+
+      await controller.start(
+        url: _link,
+        outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
+        audioProviders: const [],
+      );
+
+      expect(controller.error, contains('at least one place'));
+      expect(recorded, isEmpty);
+      controller.dispose();
+    });
+
+    test('a provider chain reaches the command line', () async {
+      final recorded = <List<String>>[];
+      final controller = DownloadController(
+        client: SpotdlClient(
+          launcher: fakeLauncher(const [], recordArguments: recorded),
+        ),
+      );
+
+      await controller.start(
+        url: _link,
+        outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
+        audioProviders: const ['piped', 'soundcloud'],
+      );
+
+      final line = recorded.single;
+      final at = line.indexOf('--audio');
+      expect(line.sublist(at + 1, at + 3), ['piped', 'soundcloud']);
+      controller.dispose();
+    });
+  });
+
   group('making a pasted cookies path usable', () {
     test('a leading flag is stripped', () {
       // What a real run was given, which spotdl reported as

@@ -83,6 +83,51 @@ enum DownloadFormat {
 /// v4's CLI; [SpotdlClient.version] is what confirms the binary is there, and any
 /// disagreement about a flag surfaces as spotdl's own error text in the log
 /// rather than as a silent failure.
+/// Every provider spotdl can search, with what it is actually good for.
+///
+/// The order in the picker is the order worth trying. Piped matters more than it
+/// looks: it is YouTube's catalogue fetched through a Piped instance, so it is
+/// the one option that keeps the coverage while getting off an address YouTube
+/// has decided to distrust — which is the failure this exists to route around.
+enum AudioProvider {
+  youtubeMusic(
+    'youtube-music',
+    'YouTube Music',
+    'Best metadata match. Currently broken in spotdl 4.5.2 — it searches with a '
+        'German client and gets nothing back.',
+  ),
+  youtube(
+    'youtube',
+    'YouTube',
+    'Widest catalogue. Needs a cookies file, and refuses music tracks outright '
+        'from addresses it distrusts.',
+  ),
+  piped(
+    'piped',
+    'Piped',
+    "YouTube's catalogue through a Piped instance — the same audio without your "
+        'address being the one YouTube judges.',
+  ),
+  soundcloud(
+    'soundcloud',
+    'SoundCloud',
+    'No sign-in, no bot checks. Strong on electronic, hip-hop, remixes and '
+        'anything self-released; thin on mainstream back catalogue.',
+  ),
+  bandcamp(
+    'bandcamp',
+    'Bandcamp',
+    'Artist-uploaded and freely downloadable. Excellent for independent music, '
+        'almost nothing from major labels.',
+  );
+
+  const AudioProvider(this.flag, this.label, this.note);
+
+  final String flag;
+  final String label;
+  final String note;
+}
+
 /// The search providers, in the order spotdl should try them.
 ///
 /// Not spotdl's default, which is `youtube-music` alone — and that provider is

@@ -90,12 +90,18 @@ class DownloadController extends ChangeNotifier {
     String? cookiesFile,
     bool overwriteExisting = false,
     String? ytDlpArgs,
+    List<String> audioProviders = defaultAudioProviders,
   }) async {
     if (_running) return;
 
     final trimmed = url.trim();
     if (trimmed.isEmpty) {
       _error = 'Paste a Spotify playlist, album or track link first.';
+      notifyListeners();
+      return;
+    }
+    if (audioProviders.isEmpty) {
+      _error = 'Pick at least one place to search for the audio.';
       notifyListeners();
       return;
     }
@@ -151,6 +157,7 @@ class DownloadController extends ChangeNotifier {
       cookiesFile: cookies,
       overwriteExisting: overwriteExisting,
       ytDlpArgs: ytDlpArgs,
+      audioProviders: audioProviders,
     );
 
     final done = Completer<void>();

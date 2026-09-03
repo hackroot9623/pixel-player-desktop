@@ -343,6 +343,27 @@ one. Two ways through, and the screen offers both when it sees a 403:
   formats need no token. It downloads a 360p video and ffmpeg keeps the audio, so
   it costs bandwidth rather than quality.
 
+**Where to look for the audio** is a row of chips, tried in order. spotdl treats them as
+a fallback chain, so a provider that refuses you costs a retry rather than the track:
+
+* **YouTube Music** — best metadata match, and broken in spotdl 4.5.2 (the German-client bug
+  above).
+* **YouTube** — widest catalogue, needs cookies, and refuses music tracks outright from
+  addresses it has decided to distrust.
+* **Piped** — YouTube's catalogue through a Piped instance. Measured here it still resolved to
+  a youtube.com URL and hit the same wall, so it is not the escape it looks like.
+* **SoundCloud** — no sign-in, no bot checks. Strong on electronic, hip-hop, remixes and
+  self-released music; thin on major-label back catalogue.
+* **Bandcamp** — artist-uploaded and freely downloadable. Excellent for independent music,
+  almost nothing from the majors.
+
+What PixelPlayer will not do is decrypt a streaming service. The Telegram bots that pull from
+Deezer work by decrypting its streams with a subscriber token; that is circumventing a
+protection measure rather than fetching a file, and it is not in this app. If YouTube refuses
+you and SoundCloud and Bandcamp do not carry the music, the honest answers are to buy the
+files or to point the app at a library you already own — it plays from Jellyfin, Navidrome,
+Google Drive and Telegram precisely so it does not have to scrape anything.
+
 The **Extra yt-dlp arguments** field exists because this is a moving target: what
 YouTube demands changes month to month, and the field is how you answer it
 without waiting for a PixelPlayer release.

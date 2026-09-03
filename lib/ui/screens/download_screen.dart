@@ -30,6 +30,13 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
   final _cookies = TextEditingController();
   final _ytDlpArgs = TextEditingController();
 
+  /// Where to look for the audio, in order. spotdl tries them as a chain, so a
+  /// dead provider costs a retry rather than the track.
+  final _providers = <AudioProvider>{
+    AudioProvider.youtubeMusic,
+    AudioProvider.youtube,
+  };
+
   DownloadFormat _format = DownloadFormat.mp3;
   String _bitrate = 'auto';
   bool _overwrite = false;
@@ -91,6 +98,11 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
       bitrate: _bitrate,
       cookiesFile: _cookies.text.trim().isEmpty ? null : _cookies.text.trim(),
       ytDlpArgs: _ytDlpArgs.text.trim().isEmpty ? null : _ytDlpArgs.text.trim(),
+      audioProviders: [
+        // Enum order, not click order: it is the order worth trying.
+        for (final provider in AudioProvider.values)
+          if (_providers.contains(provider)) provider.flag,
+      ],
       overwriteExisting: _overwrite,
     );
   }
@@ -261,6 +273,52 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                     'YouTube refuses most downloads without one — the same '
                     'cookies.txt the YouTube Music source uses.',
                 helperMaxLines: 2,
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            Text('Where to look for the audio', style: theme.textTheme.titleSmall),
+            const SizedBox(height: 2),
+            Text(
+              'Tried in order, so a provider that refuses you costs a retry '
+              'rather than the track. Spotify only ever supplies the tags.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final provider in AudioProvider.values)
+                  FilterChip(
+                    label: Text(provider.label),
+                    tooltip: provider.note,
+                    selected: _providers.contains(provider),
+                    onSelected: download.running
+                        ? null
+                        : (selected) => setState(() {
+                            if (selected) {
+                              _providers.add(provider);
+                            } else {
+                              _providers.remove(provider);
+                            }
+                          }),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _providers.isEmpty
+                  ? 'Pick at least one.'
+                  : _providers
+                        .map((provider) => provider.note.split('.').first)
+                        .join(' · '),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: _providers.isEmpty
+                    ? theme.colorScheme.error
+                    : theme.colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 12),
