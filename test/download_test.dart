@@ -326,6 +326,59 @@ void main() {
     });
   });
 
+  group('making a pasted cookies path usable', () {
+    test('a leading flag is stripped', () {
+      // What a real run was given, which spotdl reported as
+      // FileNotFoundError: '--cookies' once per track.
+      expect(
+        resolveCookiesPath('--cookies /home/me/cookies.txt'),
+        '/home/me/cookies.txt',
+      );
+      expect(
+        resolveCookiesPath('--cookie-file /home/me/cookies.txt'),
+        '/home/me/cookies.txt',
+      );
+    });
+
+    test('a tilde is expanded, since the shell is not involved', () {
+      expect(
+        resolveCookiesPath('~/.config/c.txt', home: '/home/me'),
+        '/home/me/.config/c.txt',
+      );
+      expect(resolveCookiesPath('~', home: '/home/me'), '/home/me');
+      // A tilde inside the path is not a home directory.
+      expect(resolveCookiesPath('/tmp/a~b.txt', home: '/home/me'), '/tmp/a~b.txt');
+    });
+
+    test('quotes from a copied command are dropped', () {
+      expect(resolveCookiesPath('"/home/me/c.txt"'), '/home/me/c.txt');
+      expect(resolveCookiesPath("'/home/me/c.txt'"), '/home/me/c.txt');
+    });
+
+    test('a plain path is left alone', () {
+      expect(resolveCookiesPath('  /home/me/c.txt '), '/home/me/c.txt');
+    });
+
+    test('a cookies path that does not exist stops the run before it starts',
+        () async {
+      final recorded = <List<String>>[];
+      final controller = DownloadController(
+        client: SpotdlClient(launcher: fakeLauncher(const [], recordArguments: recorded)),
+      );
+
+      await controller.start(
+        url: _link,
+        outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
+        cookiesFile: '--cookies /nonexistent/cookies.txt',
+      );
+
+      expect(controller.error, contains('No cookies file at'));
+      expect(controller.error, contains('takes a path, not arguments'));
+      expect(recorded, isEmpty, reason: 'spotdl must not be started');
+      controller.dispose();
+    });
+  });
+
   group('recognising a Spotify link', () {
     test('the shapes people paste are accepted', () {
       for (final link in [

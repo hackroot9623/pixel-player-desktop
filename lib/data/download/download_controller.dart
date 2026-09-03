@@ -107,6 +107,19 @@ class DownloadController extends ChangeNotifier {
       return;
     }
 
+    // Checked before anything starts: a wrong cookies path otherwise fails once
+    // per track, hundreds of times, with a message from inside spotdl.
+    final cookies = cookiesFile == null || cookiesFile.trim().isEmpty
+        ? null
+        : resolveCookiesPath(cookiesFile);
+    if (cookies != null && !File(cookies).existsSync()) {
+      _error =
+          'No cookies file at $cookies. This field takes a path, not '
+          'arguments — put flags in the yt-dlp field below.';
+      notifyListeners();
+      return;
+    }
+
     // Created up front: spotdl writes into it, and a missing folder is a
     // confusing error from inside a subprocess.
     try {
@@ -135,7 +148,7 @@ class DownloadController extends ChangeNotifier {
       outputDirectory: outputDirectory,
       format: format,
       bitrate: bitrate,
-      cookiesFile: cookiesFile,
+      cookiesFile: cookies,
       overwriteExisting: overwriteExisting,
       ytDlpArgs: ytDlpArgs,
     );
@@ -204,6 +217,35 @@ class DownloadController extends ChangeNotifier {
     _client.cancel();
     super.dispose();
   }
+}
+
+/// Makes a pasted cookies path usable.
+///
+/// Two things a real run tripped over. A leading `--cookies` or `--cookie-file`,
+/// because the field sits next to one that does take flags and the difference is
+/// not obvious — spotdl then reported
+/// `FileNotFoundError: [Errno 2] No such file or directory: '--cookies'`, once
+/// per track. And a leading `~`, which the shell expands and Dart does not.
+String resolveCookiesPath(String value, {String? home}) {
+  var text = value.trim();
+  for (final flag in const ['--cookie-file', '--cookies-from-browser', '--cookies']) {
+    if (text.startsWith(flag)) {
+      text = text.substring(flag.length).trim();
+      break;
+    }
+  }
+  // Quotes survive a copy and paste from a terminal.
+  if (text.length > 1 &&
+      ((text.startsWith('"') && text.endsWith('"')) ||
+          (text.startsWith("'") && text.endsWith("'")))) {
+    text = text.substring(1, text.length - 1);
+  }
+  final directory = home ?? Platform.environment['HOME'] ?? '';
+  if (text == '~') return directory;
+  if (text.startsWith('~/') && directory.isNotEmpty) {
+    return '$directory${text.substring(1)}';
+  }
+  return text;
 }
 
 /// Whether this is a link spotdl can take.
