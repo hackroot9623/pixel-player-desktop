@@ -24,6 +24,7 @@ class DownloadController extends ChangeNotifier {
   StreamSubscription<SpotdlEvent>? _subscription;
 
   bool _botWall = false;
+  bool _poTokenWall = false;
   bool _running = false;
   bool _cancelled = false;
   int _total = 0;
@@ -56,6 +57,10 @@ class DownloadController extends ChangeNotifier {
   /// worst: search works anonymously, fetching the audio does not.
   bool get needsCookies => _botWall;
 
+  /// Whether the failures look like YouTube's proof-of-origin requirement,
+  /// which cookies do not fix.
+  bool get needsPoToken => _poTokenWall;
+
   String? get version => _version;
   bool get available => _version != null && _version!.isNotEmpty;
   bool get probed => _version != null;
@@ -84,6 +89,7 @@ class DownloadController extends ChangeNotifier {
     String bitrate = 'auto',
     String? cookiesFile,
     bool overwriteExisting = false,
+    String? ytDlpArgs,
   }) async {
     if (_running) return;
 
@@ -121,6 +127,7 @@ class DownloadController extends ChangeNotifier {
     _failed.clear();
     _log.clear();
     _botWall = false;
+    _poTokenWall = false;
     notifyListeners();
 
     final events = _client.download(
@@ -130,6 +137,7 @@ class DownloadController extends ChangeNotifier {
       bitrate: bitrate,
       cookiesFile: cookiesFile,
       overwriteExisting: overwriteExisting,
+      ytDlpArgs: ytDlpArgs,
     );
 
     final done = Completer<void>();
@@ -169,9 +177,11 @@ class DownloadController extends ChangeNotifier {
       case SpotdlFailed(:final track, :final error):
         _failed.add((track: track, error: error));
         if (looksLikeBotWall(error)) _botWall = true;
+        if (looksLikePoTokenWall(error)) _poTokenWall = true;
       case SpotdlLog(:final line):
         if (line.isEmpty) return;
         if (looksLikeBotWall(line)) _botWall = true;
+        if (looksLikePoTokenWall(line)) _poTokenWall = true;
         _log.add(line);
         // A long playlist produces thousands of lines and nobody reads past the
         // last few hundred.

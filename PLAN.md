@@ -397,6 +397,27 @@ Known limits, both recorded rather than hidden: without an album tag a famous so
 flood of live appearances, and a track number is only as right as the release picked — a
 two-disc reissue numbers differently from the original.
 
+**The second YouTube wall, and the escape hatch.** Cookies got past the sign-in check and
+revealed the next one: extraction succeeds, then every audio-only format answers
+`HTTP Error 403`, and yt-dlp says why for some clients — "https formats require a GVS PO
+Token". Cookies cannot fix a proof-of-origin requirement. Measured on this machine:
+`player_client=web_safari -f 18` downloaded 11.28 MiB of the same video that had just
+403'd, because that client's muxed format carries no token requirement. So there is now a
+`--yt-dlp-args` pass-through, an **Extra yt-dlp arguments** field, and a notice that offers
+either the PO token provider plugin (the real fix, keeps audio-only) or a button that fills
+the field with the fallback client (costs a 360p download that ffmpeg strips).
+
+The pass-through is the important part, and the reason is not laziness: YouTube's
+requirements change month to month, and a text field means the user answers them the day
+they change rather than the day a release ships.
+
+Also measured, and worth stating because it bounds what this feature can promise: **YouTube
+gates individual videos differently.** Same machine, same minute, same cookies — one video
+downloaded fine while the auto-generated "art track" upload spotdl had matched refused
+outright, and refused for plain yt-dlp too, which is how it was proved not to be spotdl's
+fault. Some tracks of a playlist will fail whatever is configured; re-running collects what
+the last run missed, since `--overwrite skip` leaves existing files alone.
+
 **About and licences.** Version, `showLicensePage` for every package, a link to the source,
 and the way into diagnostics. Tapping the version seven times opens the easter egg, same
 count as the phone.

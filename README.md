@@ -328,7 +328,30 @@ yt-dlp --cookies-from-browser firefox --cookies ~/.config/pixelplay-cookies.txt 
   --skip-download 'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
 ```
 
-Put that path in the Cookies file field. It is your YouTube session in a text file — keep it
+Put that path in the Cookies file field.
+
+Cookies get you past the sign-in check, and then a **second** wall may appear:
+extraction succeeds and the audio-only formats answer `HTTP Error 403`, because
+YouTube now binds them to a proof-of-origin (PO) token. Cookies do not fix that
+one. Two ways through, and the screen offers both when it sees a 403:
+
+* Install a PO token provider plugin for yt-dlp (`bgutil-ytdlp-pot-provider`, in
+  the AUR or from its own repo). The proper fix, and audio-only downloads keep
+  working.
+* Or press **Use the fallback client**, which fills the advanced field with
+  `--extractor-args youtube:player_client=web_safari -f 18` — a client whose
+  formats need no token. It downloads a 360p video and ffmpeg keeps the audio, so
+  it costs bandwidth rather than quality.
+
+The **Extra yt-dlp arguments** field exists because this is a moving target: what
+YouTube demands changes month to month, and the field is how you answer it
+without waiting for a PixelPlayer release.
+
+Expect some tracks to fail whatever you do. YouTube gates individual videos
+differently — measured here on the same machine, in the same minute, with the
+same cookies: one video downloaded 11 MiB fine while the auto-generated "art
+track" upload spotdl matched refused entirely. Re-running picks up what a
+previous run missed, since existing files are skipped. It is your YouTube session in a text file — keep it
 to yourself, and expect to regenerate it when it expires.
 
 Be clear about what this is. **Nothing decrypts Spotify** — its audio is protected and never

@@ -103,6 +103,7 @@ List<String> spotdlArguments({
   int threads = 4,
   bool overwriteExisting = false,
   List<String> audioProviders = defaultAudioProviders,
+  String? ytDlpArgs,
 }) => [
   'download',
   url,
@@ -116,6 +117,13 @@ List<String> spotdlArguments({
   '--threads',
   '$threads',
   if (audioProviders.isNotEmpty) ...['--audio', ...audioProviders],
+  // Whatever the user needs to get past YouTube this week. spotdl hands the
+  // string to yt-dlp's own parser, so the recipes from its wiki work verbatim —
+  // a player_client, a PO token, a format selector.
+  if (ytDlpArgs != null && ytDlpArgs.trim().isNotEmpty) ...[
+    '--yt-dlp-args',
+    ytDlpArgs.trim(),
+  ],
   // Skip rather than redownload: the usual reason to run this twice is to pick
   // up what a playlist gained since last time.
   '--overwrite',
@@ -144,6 +152,21 @@ bool looksLikeBotWall(String text) {
   }
   if (line.contains('--cookies') || line.contains('cookie-file')) return true;
   return line.contains('yt-dlp download error');
+}
+
+/// Whether the failure is YouTube's other refusal: a format that needs a PO
+/// token.
+///
+/// Distinct from the sign-in wall and fixed differently. Verified here: with a
+/// working cookies file, extraction succeeds and the audio-only formats then
+/// answer `HTTP Error 403`, because YouTube now binds them to a proof-of-origin
+/// token. yt-dlp says so itself for some clients — "https formats require a GVS
+/// PO Token".
+bool looksLikePoTokenWall(String text) {
+  final line = text.toLowerCase();
+  return line.contains('po token') ||
+      line.contains('403: forbidden') ||
+      line.contains('http error 403');
 }
 
 /// Removes terminal colour codes, which spotdl emits when it thinks it has a
@@ -323,6 +346,7 @@ class SpotdlClient {
     int threads = 4,
     bool overwriteExisting = false,
     List<String> audioProviders = defaultAudioProviders,
+    String? ytDlpArgs,
   }) async* {
     final process = await _launch(
       executable,
@@ -335,6 +359,7 @@ class SpotdlClient {
         threads: threads,
         overwriteExisting: overwriteExisting,
         audioProviders: audioProviders,
+        ytDlpArgs: ytDlpArgs,
       ),
     );
     _current = process;

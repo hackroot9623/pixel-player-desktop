@@ -68,6 +68,30 @@ void main() {
       );
     });
 
+    test('extra yt-dlp arguments are handed over verbatim', () {
+      // What YouTube demands changes weekly; this is the escape hatch that does
+      // not need a release. spotdl parses the string with yt-dlp's own parser,
+      // so it stays one argument.
+      final line = spotdlArguments(
+        url: _link,
+        outputDirectory: '/music',
+        ytDlpArgs: '--extractor-args youtube:player_client=web_safari -f 18',
+      );
+      expect(
+        line[line.indexOf('--yt-dlp-args') + 1],
+        '--extractor-args youtube:player_client=web_safari -f 18',
+      );
+
+      expect(
+        spotdlArguments(
+          url: _link,
+          outputDirectory: '/music',
+          ytDlpArgs: '   ',
+        ).contains('--yt-dlp-args'),
+        isFalse,
+      );
+    });
+
     test('cookies are passed only when there are some', () {
       expect(args().contains('--cookie-file'), isFalse);
       expect(args(cookies: '').contains('--cookie-file'), isFalse);
@@ -259,6 +283,45 @@ void main() {
         outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
       );
       expect(controller.needsCookies, isFalse);
+      controller.dispose();
+    });
+  });
+
+  group('recognising the proof-of-origin wall', () {
+    test('the 403 and the PO token warning are both recognised', () {
+      // Measured on a real machine: with working cookies, extraction succeeds
+      // and the audio-only formats answer 403 because YouTube binds them to a
+      // proof-of-origin token.
+      for (final line in [
+        'ERROR: unable to download video data: HTTP Error 403: Forbidden',
+        'WARNING: [youtube] mweb client https formats require a GVS PO Token '
+            'which was not provided',
+      ]) {
+        expect(looksLikePoTokenWall(line), isTrue, reason: line);
+      }
+    });
+
+    test('it is not confused with the sign-in wall', () {
+      // Different failure, different fix: cookies solve one and not the other.
+      const signIn = 'ERROR: [youtube] x: Sign in to confirm you are not a bot';
+      expect(looksLikePoTokenWall(signIn), isFalse);
+      expect(looksLikeBotWall(signIn), isTrue);
+    });
+
+    test('the controller reports it separately from the cookie wall', () async {
+      final controller = DownloadController(
+        client: SpotdlClient(
+          launcher: fakeLauncher([
+            'Found 1 song in X (album)',
+            'ERROR: unable to download video data: HTTP Error 403: Forbidden',
+          ]),
+        ),
+      );
+      await controller.start(
+        url: _link,
+        outputDirectory: '${Directory.systemTemp.path}/pixelplay-dl-test',
+      );
+      expect(controller.needsPoToken, isTrue);
       controller.dispose();
     });
   });

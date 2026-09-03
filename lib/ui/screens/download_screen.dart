@@ -28,6 +28,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
   final _url = TextEditingController();
   final _folder = TextEditingController();
   final _cookies = TextEditingController();
+  final _ytDlpArgs = TextEditingController();
 
   DownloadFormat _format = DownloadFormat.mp3;
   String _bitrate = 'auto';
@@ -70,6 +71,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
     _url.dispose();
     _folder.dispose();
     _cookies.dispose();
+    _ytDlpArgs.dispose();
     super.dispose();
   }
 
@@ -88,6 +90,7 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
       format: _format,
       bitrate: _bitrate,
       cookiesFile: _cookies.text.trim().isEmpty ? null : _cookies.text.trim(),
+      ytDlpArgs: _ytDlpArgs.text.trim().isEmpty ? null : _ytDlpArgs.text.trim(),
       overwriteExisting: _overwrite,
     );
   }
@@ -260,6 +263,21 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
                 helperMaxLines: 2,
               ),
             ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _ytDlpArgs,
+              enabled: !download.running,
+              decoration: const InputDecoration(
+                labelText: 'Extra yt-dlp arguments (advanced)',
+                border: OutlineInputBorder(),
+                helperText:
+                    'Passed straight to yt-dlp. What YouTube demands changes '
+                    'often, and this is how you answer it without waiting for '
+                    'a release.',
+                helperMaxLines: 3,
+              ),
+            ),
             const SizedBox(height: 8),
 
             CheckboxListTile(
@@ -312,6 +330,9 @@ class _DownloadScreenState extends ConsumerState<DownloadScreen> {
               _Progress(
                 download: download,
                 hasCookies: _cookies.text.trim().isNotEmpty,
+                onUseFallbackClient: () => setState(
+                  () => _ytDlpArgs.text = fallbackClientArguments,
+                ),
               ),
           ],
         ],
@@ -388,12 +409,19 @@ class _MissingSpotdl extends StatelessWidget {
 }
 
 class _Progress extends StatelessWidget {
-  const _Progress({required this.download, required this.hasCookies});
+  const _Progress({
+    required this.download,
+    required this.hasCookies,
+    required this.onUseFallbackClient,
+  });
 
   final DownloadController download;
 
   /// Only so the bot-wall notice can say "generate one" or "yours expired".
   final bool hasCookies;
+
+  /// Fills the advanced field with the client that does not need a PO token.
+  final VoidCallback onUseFallbackClient;
 
   @override
   Widget build(BuildContext context) {
@@ -438,6 +466,11 @@ class _Progress extends StatelessWidget {
               if (download.needsCookies) ...[
                 const SizedBox(height: 12),
                 _BotWallNotice(hasCookies: hasCookies),
+              ],
+
+              if (download.needsPoToken) ...[
+                const SizedBox(height: 12),
+                _PoTokenNotice(onUseFallbackClient: onUseFallbackClient),
               ],
 
               if (download.failed.isNotEmpty) ...[
@@ -595,6 +628,102 @@ class _BotWallNotice extends StatelessWidget {
                       color: theme.colorScheme.onErrorContainer,
                     ),
                   ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// The arguments that got a download through on a machine where the audio-only
+/// formats were all answering 403.
+///
+/// web_safari offers no audio-only format, so this takes the muxed 360p mp4 and
+/// lets ffmpeg keep the audio — bigger over the wire, but it downloads, which
+/// beats a correct-looking failure.
+const fallbackClientArguments =
+    '--extractor-args youtube:player_client=web_safari -f 18';
+
+/// What to do when the cookies work but YouTube still refuses the audio.
+///
+/// A separate failure from the sign-in wall and fixed differently: extraction
+/// succeeds, and then the audio-only formats answer 403 because YouTube binds
+/// them to a proof-of-origin token. Two ways out, and the honest thing is to
+/// offer both — the plugin is the real fix, the fallback client is the one that
+/// needs no installing.
+class _PoTokenNotice extends StatelessWidget {
+  const _PoTokenNotice({required this.onUseFallbackClient});
+
+  final VoidCallback onUseFallbackClient;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      color: theme.colorScheme.secondaryContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.token_outlined,
+                  size: 18,
+                  color: theme.colorScheme.onSecondaryContainer,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'YouTube wants a proof-of-origin token',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      color: theme.colorScheme.onSecondaryContainer,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'The cookies got through; the audio formats then answered 403. '
+              'Cookies cannot fix this one. Either install a PO token provider '
+              'plugin for yt-dlp — the proper fix, and it keeps audio-only '
+              'downloads — or fall back to a client that does not need one, '
+              'which costs a 360p video download that ffmpeg strips to audio.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSecondaryContainer,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: onUseFallbackClient,
+                  icon: const Icon(Icons.swap_horiz_rounded, size: 16),
+                  label: const Text('Use the fallback client'),
+                ),
+                TextButton.icon(
+                  onPressed: () async {
+                    await Clipboard.setData(
+                      const ClipboardData(
+                        text: 'https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide',
+                      ),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Guide link copied')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.link_rounded, size: 16),
+                  label: const Text("Copy yt-dlp's PO token guide"),
                 ),
               ],
             ),
